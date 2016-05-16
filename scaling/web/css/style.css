@@ -1,0 +1,16 @@
+.panel-centered {
+	width: 100%;
+	text-align: center;
+}
+
+table.aui-table tr.summary td {
+	font-weight: bold;
+}
+
+table.aui-table tr.summary {
+	border-top: 3px solid #cccccc;
+}
+
+#savings:after {
+	content: '$';
+}

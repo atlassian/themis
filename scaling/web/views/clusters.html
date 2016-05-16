@@ -1,0 +1,18 @@
+<div ui-view="list"></div>
+<div ui-view="details"></div>
+
+<section role="dialog" id="demo-dialog" class="aui-layer aui-dialog2 aui-dialog2-medium" ng-show="dialog.visible" data-aui-modal="true" style="z-index: 3000;">
+	<header class="aui-dialog2-header">
+		<h2 class="aui-dialog2-header-main">{{dialog.title}}</h2>
+	</header>
+	<div class="aui-dialog2-content">
+		<p>{{dialog.text}}</p>
+	</div>
+	<footer class="aui-dialog2-footer">
+		<div class="aui-dialog2-footer-actions">
+			<button id="dialog-submit-button" class="aui-button aui-button-primary" ng-click="dialog.ok()">OK</button>
+			<button id="dialog-cancel-button" class="aui-button" ng-click="dialog.cancel()">Cancel</button>
+		</div>
+	</footer>
+</section>
+<div class="aui-blanket" tabindex="0" ng-show="dialog.visible" aria-hidden="{{!dialog.visible}}" style="z-index: 2980;"></div>
