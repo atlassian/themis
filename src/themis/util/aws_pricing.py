@@ -153,6 +153,8 @@ def get_cluster_savings(info, baseline_nodes, zone='us-east-1'):
 	total_costs = 0
 	total_hours = 0
 	baseline_instance_type = None
+	# TODO: don't hardcode!!
+	default_instance_type = "r3.2xlarge"
 	for point in info:
 		timestamp = float(point['timestamp'])
 		if timestamp < start_time:
@@ -171,7 +173,7 @@ def get_cluster_savings(info, baseline_nodes, zone='us-east-1'):
 				node = node_obj['iid']
 				all_nodes.add(node)
 				# TODO: don't hardcode!!
-				instance_types[node] = "r3.2xlarge"
+				instance_types[node] = default_instance_type
 				if instance_types[node] not in instance_type_prices:
 					instance_type_prices[instance_types[node]] = get_fixed_price(zone, instance_types[node])
 				if not baseline_instance_type:
@@ -207,7 +209,7 @@ def get_cluster_savings(info, baseline_nodes, zone='us-east-1'):
 	end_time = end_time / 1000.0
 	duration_hours = (end_time - start_time) / 60.0 / 60.0
 	# compute baseline costs
-	baseline_costs = baseline_nodes * get_fixed_price(zone, instance_types[node]) * duration_hours
+	baseline_costs = baseline_nodes * get_fixed_price(zone, default_instance_type) * duration_hours
 
 	# prepare result
 	result['start_time'] = start_time
@@ -217,5 +219,5 @@ def get_cluster_savings(info, baseline_nodes, zone='us-east-1'):
 	result['costs_baseline'] = baseline_costs
 	result['saved'] = result['costs_baseline'] - result['costs']
 	result['duration'] = end_time - start_time
-	result['saved_per_second'] = result['saved'] / result['duration']
+	result['saved_per_second'] = (result['saved'] / result['duration']) if result['duration'] > 0 else 0
 	return result

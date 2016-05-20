@@ -13,6 +13,8 @@ INSTANCE_STATE_TERMINATED = 'TERMINATED'
 
 INVALID_CONFIG_VALUE = '_invalid_value_to_avoid_restart_'
 
+CLUSTER_TYPE_PRESTO = "Presto"
+
 def ip_to_hostname(ip):
 	return 'ip-' + re.sub(r'\.', r'-', ip) + '.growth.internal.atlassian.com'
 
@@ -127,7 +129,8 @@ def set_presto_node_state(cluster_ip, node_ip, state):
 	cmd = "sudo sed -i 's/http-server.threads.max=.*/http-server.threads.max=%s/g' /etc/presto/conf/config.properties" % INVALID_CONFIG_VALUE
 	out = run_ssh(cmd, cluster_ip, user='hadoop', via_hosts=[node_ip], cache_duration_secs=QUERY_CACHE_TIMEOUT)
 
-	cmd = "curl -s --connect-timeout %s -X PUT -H 'Content-Type:application/json' -d '\\\"%s\\\"' http://%s:8889/v1/info/state" % (CURL_CONNECT_TIMEOUT, state, node_ip)
+	cmd = "curl -s --connect-timeout %s -X PUT -H 'Content-Type:application/json' " + \
+			"-d '\\\"%s\\\"' http://%s:8889/v1/info/state" % (CURL_CONNECT_TIMEOUT, state, node_ip)
 	log(cmd)
 	out = run_ssh(cmd, cluster_ip, user='hadoop', cache_duration_secs=QUERY_CACHE_TIMEOUT)
 	out = re.sub(r'\s*"(.+)"\s*', r'\1', out)
