@@ -1,3 +1,5 @@
+# Themis - AWS EMR Autoscaler
+
 == Installation
 
 Below is a (probably incomplete) list of steps required to install and run the autoscaling tool.

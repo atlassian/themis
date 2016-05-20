@@ -113,7 +113,7 @@ def run(cmd, cache_duration_secs=0):
 
 def run_ssh(cmd, host, user=None, keys=None, via_hosts=[], cache_duration_secs=0):
 	if not keys:
-		keys = ['~/.ssh/ai-etl.pem', '~/.ssh/atl-ai-etl-dev.pem']
+		keys = ['~/.ssh/atl-ai-etl-prod.pem', '~/.ssh/atl-ai-etl-dev.pem', '~/.ssh/ai-etl.pem']
 
 	user = '%s@' % user if user else ''
 

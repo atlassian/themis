@@ -29,6 +29,16 @@ def remove_nan(array):
 		i += 1
 	return array
 
+def get_time_duration(datapoints):
+	start = float('inf')
+	end = 0
+	for d in datapoints:
+		if d[1] > end:
+			end = d[1]
+		if d[1] < start:
+			start = d[1]
+	return end - start
+
 def get_node_load_part(cluster_ip, cluster_id, host, type, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	diff_secs = monitoring_interval_secs
 	format = "%m/%d/%Y %H:%M"
@@ -60,13 +70,16 @@ def get_node_load_part(cluster_ip, cluster_id, host, type, monitoring_interval_s
 			integrated = 0
 			if len(rev_curve) >= 2:
 				integrated = integrate.simps(rev_curve[0], rev_curve[1])
-			total = diff_secs * 100.0
+			time_duration = get_time_duration(datapoints)
+			total = time_duration * 100.0
 			percent = 1.0 - (integrated / total)
-			return percent
+			if type == 'cpu':
+				return percent
 	if type == 'mem':
 		if mem_total == 0:
 			return float('NaN')
 		return 1.0 - (mem_free / mem_total)
+	return float('NaN')
 
 def get_node_load_cpu(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	return get_node_load_part(cluster_ip, cluster_id, host, 'cpu', monitoring_interval_secs)
@@ -80,11 +93,14 @@ def get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITOR
 	result['cpu'] = get_node_load_cpu(cluster_ip, cluster_id, host, monitoring_interval_secs)
 	return result
 
-def get_cluster_load(cluster_info, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+def get_cluster_load(cluster_info, task_nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	cluster_id = cluster_info['id']
 	cluster_ip = cluster_info['ip']
 	result = {}
-	nodes = aws_common.get_all_task_nodes(cluster_id, cluster_ip)
+	nodes = task_nodes
+	if not nodes:
+		nodes = aws_common.get_all_task_nodes(cluster_id, cluster_ip)
+
 	def query(node):
 		cluster_ip = cluster_info['ip']
 		host = node['host']
@@ -93,14 +109,15 @@ def get_cluster_load(cluster_info, monitoring_interval_secs=MONITORING_INTERVAL_
 			result[host] = load
 		except Exception, e:
 			try:
-				# Appears that Ganglia is only available via public IP address
-				# (necessary if running the autoscaling webserver outside EC2)
+				# Ganglia is only available via public IP address
+				# (necessary if running the autoscaling webserver outside AWS)
 				cluster_ip = cluster_info['ip_public']
 				load = get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs)
 				result[host] = load
 			except Exception, e:
 				log("WARN: Unable to get load for node %s: %s" % (host,e))
 				result[host] = {}
+
 	parallelize(nodes, query)
 	return result
 
@@ -112,6 +129,9 @@ def get_presto_node_states(nodes, cluster_ip):
 				state = aws_common.get_presto_node_state(cluster_ip, host)
 				node_info['presto_state'] = state
 		except Exception, e:
+			if host[0:9] == 'testhost-':
+				# for testing purposes
+				node_info['presto_state'] = aws_common.PRESTO_STATE_ACTIVE
 			# swallow this exception. It occurs if the node has been shutdown (i.e., JVM
 			# process on node is terminated) but the instance has not been terminated yet
 			pass
@@ -120,13 +140,17 @@ def get_presto_node_states(nodes, cluster_ip):
 def get_node_queries(cluster_ip):
 	cmd = 'presto-cli --execute \\"SELECT n.http_uri,count(q.node_id) from system.runtime.nodes n left join (select * from system.runtime.queries where state = \'RUNNING\' ) as q on q.node_id = n.node_id group by n.http_uri\\"'
 
+	result = {}
+	if cluster_ip == 'localhost':
+		# for testing purposes
+		return result
+
 	# run ssh command
 	out = run_ssh(cmd, cluster_ip, user='hadoop', cache_duration_secs=QUERY_CACHE_TIMEOUT)
 
 	# remove SSH log output line
 	out = remove_lines_from_string(out, r'.*Permanently added.*')
 
-	result = {}
 	for line in out.splitlines():
 		ip = re.sub(r'.*http://([0-9\.]+):.*', r'\1', line)
 		if ip:
@@ -189,15 +213,17 @@ def add_stats(data):
 		task_nodes = [n for n in data['nodes_list'] if n['type'] == aws_common.INSTANCE_GROUP_TYPE_TASK]
 		do_add_stats(task_nodes, data['tasknodes'])
 
-def collect_info(cluster_info, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+def collect_info(cluster_info, task_nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	cluster_id = cluster_info['id']
 	cluster_ip = cluster_info['ip']
 	result = {}
 	result['nodes'] = {}
 	result['cluster_id'] = cluster_id
-	result['is_presto'] = True
-	all_task_nodes = aws_common.get_cluster_nodes(cluster_id)
-	for node in all_task_nodes:
+	result['is_presto'] = cluster_info['type'] == aws_common.CLUSTER_TYPE_PRESTO
+	task_nodes_list = task_nodes
+	if not task_nodes_list:
+		task_nodes_list = aws_common.get_cluster_nodes(cluster_id)
+	for node in task_nodes_list:
 		host = node['host']
 		result['nodes'][host] = {}
 		result['nodes'][host]['type'] = node['type']
@@ -214,7 +240,6 @@ def collect_info(cluster_info, monitoring_interval_secs=MONITORING_INTERVAL_SECS
 			result['nodes'][host]['queries'] = queries[host]
 		result['idle_nodes'] = get_idle_task_nodes(queries)
 	except subprocess.CalledProcessError, e:
-		result['is_presto'] = False
 		# happens for non-presto clusters (where presto-cli is not available)
 		pass
 	result['nodes_list'] = []
@@ -222,7 +247,7 @@ def collect_info(cluster_info, monitoring_interval_secs=MONITORING_INTERVAL_SECS
 		entry = result['nodes'][host]
 		entry['host'] = host
 		result['nodes_list'].append(entry)
-	node_infos = get_cluster_load(cluster_info, monitoring_interval_secs)
+	node_infos = get_cluster_load(cluster_info, task_nodes=task_nodes, monitoring_interval_secs=monitoring_interval_secs)
 	for host in node_infos:
 		result['nodes'][host]['load'] = node_infos[host]
 		if 'presto_state'in result['nodes'][host]:
@@ -244,7 +269,6 @@ def history_get_db():
 		db_connection = sqlite3.connect(DB_FILE_NAME)
 		local.db_connection = db_connection
 		c = db_connection.cursor()
-		#c.execute('DROP TABLE states')
 		c.execute('CREATE TABLE IF NOT EXISTS states (timestamp text unique, cluster text, state text, action text)')
 		db_connection.commit()
 	return db_connection

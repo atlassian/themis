@@ -1,21 +1,18 @@
 from flask import Flask, render_template, jsonify, send_from_directory, request
-import util.monitoring
-import util.aws_common
-import util.aws_pricing
-import util.common
+from flask_swagger import swagger
 import os
 import re
 import json
 import time
 import threading
 import traceback
-from flask_swagger import swagger
-from util.aws_common import INSTANCE_GROUP_TYPE_TASK
+from themis.util import common, monitoring, aws_common, aws_pricing
+from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
 
 root_path = os.path.dirname(os.path.realpath(__file__))
-web_dir = root_path + '/web/'
+web_dir = root_path + '/../../../web/'
 
-app = Flask('app', template_folder='web')
+app = Flask('app', template_folder=web_dir)
 app.root_path = root_path
 
 # time to sleep between loops
@@ -52,7 +49,7 @@ DEFAULT_APP_CONFIG = [
 	{KEY: KEY_MONITORING_INTERVAL_SECS, VAL: 60 * 10, DESC: 'Time period (seconds) of historical monitoring data to consider for scaling decisions'}
 ]
 
-CLUSTER_LIST = util.common.load_json_file(CLUSTERS_FILE_LOCATION, [])
+CLUSTER_LIST = common.load_json_file(CLUSTERS_FILE_LOCATION, [])
 CLUSTERS = {}
 for val in CLUSTER_LIST:
 	CLUSTERS[val['id']] = val
@@ -74,7 +71,7 @@ def get_state(cluster_id):
 			  in: path
 	"""
 	monitoring_interval_secs = int(get_config_value(KEY_MONITORING_INTERVAL_SECS))
-	info = util.monitoring.collect_info(CLUSTERS[cluster_id], monitoring_interval_secs)
+	info = monitoring.collect_info(CLUSTERS[cluster_id], monitoring_interval_secs)
 	return jsonify(info)
 
 @app.route('/history/<cluster_id>')
@@ -86,8 +83,8 @@ def get_history(cluster_id):
 			- name: 'cluster_id'
 			  in: path
 	"""
-	info = util.monitoring.history_get(cluster_id, 100)
-	util.common.remove_NaN(info)
+	info = monitoring.history_get(cluster_id, 100)
+	common.remove_NaN(info)
 	return jsonify(results=info)
 
 @app.route('/clusters')
@@ -136,7 +133,7 @@ def restart_node():
 	for c_id, details in CLUSTERS.iteritems():
 		if c_id == cluster_id:
 			cluster_ip = details['ip']
-			tasknodes_group = util.aws_common.get_instance_group_for_node(cluster_id, node_host)
+			tasknodes_group = aws_common.get_instance_group_for_node(cluster_id, node_host)
 			if tasknodes_group:
 				terminate_node(cluster_ip, node_host, tasknodes_group)
 				return jsonify({'result': 'SUCCESS'});
@@ -163,9 +160,9 @@ def get_costs():
 	cluster_id = data['cluster_id']
 	num_datapoints = data['num_datapoints'] if 'num_datapoints' in data else 300
 	baseline_nodes = data['baseline_nodes'] if 'baseline_nodes' in data else 15
-	info = util.monitoring.history_get(cluster_id, num_datapoints)
-	util.common.remove_NaN(info)
-	result = util.aws_pricing.get_cluster_savings(info, baseline_nodes)
+	info = monitoring.history_get(cluster_id, num_datapoints)
+	common.remove_NaN(info)
+	result = aws_pricing.get_cluster_savings(info, baseline_nodes)
 	return jsonify(results=result)
 
 def sort_nodes_by_load(nodes, weight_mem=1, weight_cpu=2, desc=False):
@@ -179,7 +176,7 @@ def sort_nodes_by_load(nodes, weight_mem=1, weight_cpu=2, desc=False):
 #------------------#
 
 def read_config():
-	appConfig = util.common.load_json_file(CONFIG_FILE_LOCATION)
+	appConfig = common.load_json_file(CONFIG_FILE_LOCATION)
 	if appConfig:
 		return appConfig['config']
 	write_config(DEFAULT_APP_CONFIG)
@@ -187,7 +184,7 @@ def read_config():
 
 def write_config(config):
 	configToStore = {'config': config}
-	util.common.save_json_file(CONFIG_FILE_LOCATION, configToStore)
+	common.save_json_file(CONFIG_FILE_LOCATION, configToStore)
 	return config
 
 def get_config_value(key, config=None):
@@ -201,37 +198,41 @@ def get_config_value(key, config=None):
 def get_autoscaling_clusters():
 	return re.split(r'\s*,\s*', get_config_value(KEY_AUTOSCALING_CLUSTERS))
 
-def get_termination_candidates(info, ignore_preferred=False):
+def get_termination_candidates(info, ignore_preferred=False, config=None):
 	candidates = []
 	for key, details in info['nodes'].iteritems():
-		if details['type'] == util.aws_common.INSTANCE_GROUP_TYPE_TASK:
+		if details['type'] == aws_common.INSTANCE_GROUP_TYPE_TASK:
 			if 'queries' not in details:
 				details['queries'] = 0
+			# terminate only nodes with 0 queries running
 			if details['queries'] == 0:
-				group_details = util.aws_common.get_instance_group_details(info['cluster_id'], details['gid'])
-				preferred = get_config_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET)
-				if ignore_preferred or group_details['market'] == preferred:
+				preferred = get_config_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, config)
+				if ignore_preferred or not preferred:
 					candidates.append(details)
+				else:
+					group_details = aws_common.get_instance_group_details(info['cluster_id'], details['gid'])
+					if group_details['market'] == preferred:
+						candidates.append(details)
 	return candidates
 
-def get_nodes_to_terminate(info):
-	expr = get_config_value(KEY_DOWNSCALE_EXPR)
-	num_downsize = util.monitoring.execute_dsl_string(expr, info)
+def get_nodes_to_terminate(info, config=None):
+	expr = get_config_value(KEY_DOWNSCALE_EXPR, config)
+	num_downsize = monitoring.execute_dsl_string(expr, info)
 	print("num_downsize: %s" % num_downsize)
 	if not isinstance(num_downsize, int) or num_downsize <= 0:
 		return []
 
-	candidates = get_termination_candidates(info)
+	candidates = get_termination_candidates(info, config=config)
 
 	if len(candidates) <= 0:
-		candidates = get_termination_candidates(info, ignore_preferred=True)
+		candidates = get_termination_candidates(info, ignore_preferred=True, config=config)
 
 	candidates = sort_nodes_by_load(candidates, desc=False)
 
 	result = []
 	if candidates:
 		for cand in candidates:
-			ip = util.aws_common.hostname_to_ip(cand['host'])
+			ip = aws_common.hostname_to_ip(cand['host'])
 			instance_info = {
 				'iid': cand['iid'],
 				'cid': cand['cid'],
@@ -243,9 +244,9 @@ def get_nodes_to_terminate(info):
 				return result
 	return result
 
-def get_nodes_to_add(info):
-	expr = get_config_value(KEY_UPSCALE_EXPR)
-	num_upsize = util.monitoring.execute_dsl_string(expr, info)
+def get_nodes_to_add(info, config=None):
+	expr = get_config_value(KEY_UPSCALE_EXPR, config)
+	num_upsize = monitoring.execute_dsl_string(expr, info)
 	print("num_upsize: %s" % num_upsize)
 	if isinstance(num_upsize, int) and num_upsize > 0:
 		return ['TODO' for i in range(0,num_upsize)]
@@ -253,11 +254,11 @@ def get_nodes_to_add(info):
 
 def terminate_node(cluster_ip, node_ip, tasknodes_group):
 	print("Sending shutdown signal to task node with IP '%s'" % node_ip)
-	util.aws_common.set_presto_node_state(cluster_ip, node_ip, util.aws_common.PRESTO_STATE_SHUTTING_DOWN)
+	aws_common.set_presto_node_state(cluster_ip, node_ip, aws_common.PRESTO_STATE_SHUTTING_DOWN)
 
 def spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, nodes_to_add=1):
 	print("Adding new task node to cluster '%s'" % cluster_ip)
-	util.aws_common.spawn_task_node(tasknodes_group, current_num_nodes, nodes_to_add)
+	aws_common.spawn_task_node(tasknodes_group, current_num_nodes, nodes_to_add)
 
 def select_tasknode_group(tasknodes_groups):
 	if len(tasknodes_groups) <= 0:
@@ -276,7 +277,7 @@ def tick():
 	monitoring_interval_secs = int(get_config_value(KEY_MONITORING_INTERVAL_SECS))
 	for cluster_id, details in CLUSTERS.iteritems():
 		cluster_ip = details['ip']
-		info = util.monitoring.collect_info(details, monitoring_interval_secs)
+		info = monitoring.collect_info(details, monitoring_interval_secs=monitoring_interval_secs)
 		action = 'N/A'
 		# Make sure we are only resizing Presto clusters atm
 		if details['type'] == 'Presto':
@@ -290,7 +291,7 @@ def tick():
 				else:
 					nodes_to_add = get_nodes_to_add(info)
 					if len(nodes_to_add) > 0:
-						tasknodes_groups = util.aws_common.get_instance_groups_tasknodes(cluster_id)
+						tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster_id)
 						tasknodes_group = select_tasknode_group(tasknodes_groups)['id']
 						current_num_nodes = len([n for key,n in info['nodes'].iteritems() if n['gid'] == tasknodes_group])
 						spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, len(nodes_to_add))
@@ -298,9 +299,9 @@ def tick():
 					else:
 						action = 'NOTHING'
 				# clean up and terminate instances whose nodes are already in inactive state
-				util.aws_common.terminate_inactive_nodes(cluster_ip, info['nodes'])
+				aws_common.terminate_inactive_nodes(cluster_ip, info['nodes'])
 		# store the state for future reference
-		util.monitoring.history_add(cluster_id, info, action)
+		monitoring.history_add(cluster_id, info, action)
 
 def loop():
 	while True:
