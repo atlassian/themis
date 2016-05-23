@@ -2,6 +2,7 @@ from flask import Flask, request, make_response
 from flask_swagger import swagger
 import json
 import re
+import os
 import threading
 from themis.util import common
 
@@ -22,6 +23,18 @@ def serve(port):
 	app.daemon = True
 	app.start()
 	return app
+
+def init_aws_cli():
+	home = os.path.expanduser("~")
+	folder = '%s/.aws' % home
+	if not os.path.exists(folder):
+		os.makedirs(folder)
+	file_config = '%s/.aws/config' % home
+	if not os.path.isfile(file_config):
+		common.save_file(file_config, "[default]\nregion = us-east-1")
+	file_creds = '%s/.aws/credentials' % home
+	if not os.path.isfile(file_creds):
+		common.save_file(file_creds,  "[default]\naws_access_key_id = testAccessKeyId\naws_secret_access_key = testSecretKey")
 
 def mock_aws_api(method, path, req):
 	result = {}

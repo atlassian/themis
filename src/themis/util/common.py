@@ -60,10 +60,13 @@ def load_json_file(file, default=None):
 	f.close()
 	return result
 
-def save_json_file(file, content):
+def save_file(file, content):
 	f = open(file, 'w+')
-	f.write(json.dumps(content))
+	f.write(content)
 	f.close()
+
+def save_json_file(file, content):
+	save_file(json.dumps(content))
 
 def is_composite(o):
 	return isinstance(o, list) or isinstance(o, dict)
