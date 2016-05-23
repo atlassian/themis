@@ -79,6 +79,10 @@ def test_downscale():
 def test_aws_cli():
 	os.environ.AWS_ENDPOINT_URL = 'http://localhost:%s/aws' % AWS_API_PORT
 	server = mock.aws_api.serve(AWS_API_PORT)
+	out = common.run("echo $PATH")
+	print("$PATH: %s" % out)
+	out = common.run("which aws")
+	print("which aws: %s" % out)
 	out = common.run("aws emr list-clusters")
 	out = json.loads(out)
 	assert out['Clusters'][0]['Id'] == 'testClusterID1'
