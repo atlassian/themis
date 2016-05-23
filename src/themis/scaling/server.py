@@ -71,7 +71,7 @@ def get_state(cluster_id):
 			  in: path
 	"""
 	monitoring_interval_secs = int(get_config_value(KEY_MONITORING_INTERVAL_SECS))
-	info = monitoring.collect_info(CLUSTERS[cluster_id], monitoring_interval_secs)
+	info = monitoring.collect_info(CLUSTERS[cluster_id], monitoring_interval_secs=monitoring_interval_secs)
 	return jsonify(info)
 
 @app.route('/history/<cluster_id>')

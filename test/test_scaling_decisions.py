@@ -1,8 +1,11 @@
 from themis.scaling.server import *
 from themis.util import common, aws_common
 import mock.ganglia
+import mock.aws_api
 import uuid
+import os
 
+AWS_API_PORT = 9896
 GANGLIA_PORT = 9897
 
 server = None
@@ -11,15 +14,6 @@ def short_uid():
 	return str(uuid.uuid4())[0:8]
 
 def mock_cluster_state(nodes=0, config=None):
-	# s = {}
-	# s['cluster_id'] = 'testCluster'
-	# for i in ['allnodes', 'tasknodes']:
-	# 	s[i] = {}
-	# 	s[i]['running'] = True
-	# 	s[i]['active'] = True
-	# 	s[i]['count'] = {}
-	# 	s[i]['count']['nodes'] = nodes
-	# s['nodes'] = {}
 	task_nodes = []
 	for i in range(0,nodes):
 		node = {}
@@ -30,13 +24,12 @@ def mock_cluster_state(nodes=0, config=None):
 		node['host'] = 'testhost-%s' % short_uid()
 		node['state'] = aws_common.INSTANCE_STATE_RUNNING
 		node['presto_state'] = aws_common.PRESTO_STATE_ACTIVE
-		# s['nodes'][node['cid']] = node
 		task_nodes.append(node)
 	cluster_info = {
 		'id': 'testCluster',
 		'ip': 'localhost:%s' % GANGLIA_PORT,
+		'ip_public': 'localhost:%s' % GANGLIA_PORT,
 		'type': aws_common.CLUSTER_TYPE_PRESTO
-
 	}
 	info = monitoring.collect_info(cluster_info, task_nodes=task_nodes)
 	print(info)
@@ -82,3 +75,10 @@ def test_downscale():
 	info = mock_cluster_state(nodes=4, config=config)
 	nodes = get_nodes_to_terminate(info, config)
 	assert(len(nodes) == 1)
+
+def test_aws_cli():
+	os.environ.AWS_ENDPOINT_URL = 'http://localhost:%s/aws' % AWS_API_PORT
+	server = mock.aws_api.serve(AWS_API_PORT)
+	out = common.run("aws emr list-clusters")
+	out = json.loads(out)
+	assert out['Clusters'][0]['Id'] == 'testClusterID1'

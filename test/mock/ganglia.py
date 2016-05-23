@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, send_from_directory, request, make_response
+from flask import Flask, request, make_response
 from flask_swagger import swagger
 import json
 import threading

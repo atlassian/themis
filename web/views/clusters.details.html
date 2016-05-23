@@ -127,26 +127,26 @@
               <thead>
                 <tr>
                   <th ts-criteria="id" id="cost_inst_id" ts-default="descending">Instance ID</th>
-                  <th ts-criteria="start_time" id="cost_inst_start">Start Time</th>
-                  <th ts-criteria="end_time" id="cost_inst_end">Terminate Time</th>
-                  <th ts-criteria="hours" id="cost_inst_h">Duration (h)</th>
-                  <th ts-criteria="state.allnodes.sum.queries" id="cost_inst_costs">Costs</th>
+                  <th ts-criteria="start" id="cost_inst_start">Start Time</th>
+                  <th ts-criteria="end" id="cost_inst_end">Terminate Time</th>
+                  <th ts-criteria="hours" id="cost_inst_h">Hours</th>
+                  <th ts-criteria="costs" id="cost_inst_costs">Costs</th>
                 </tr>
               </thead>
               <tbody>
                 <tr ng-repeat="value in savings.instances track by value.iid" ts-repeat>
                   <td headers="cost_inst_id">{{value.iid}}</td>
-                  <td headers="cost_inst_start">{{value.start}}</td>
-                  <td headers="cost_inst_end">{{value.end}}</td>
-                  <td headers="cost_inst_h">{{value.hours}}</td>
-                  <td headers="cost_inst_costs">{{value.costs}}</td>
+                  <td headers="cost_inst_start">{{format_datetime(value.start * 1000)}}</td>
+                  <td headers="cost_inst_end">{{format_datetime(value.end * 1000)}}</td>
+                  <td headers="cost_inst_h">{{value.hours}} ({{format_number((value.end-value.start) / 60.0 / 60.0)}})</td>
+                  <td headers="cost_inst_costs">{{format_number(value.costs)}}</td>
                 </tr>
                 <tr class="summary" ng-hide="!savings.instances">
                   <td headers="cost_inst_id">Total</td>
                   <td headers="cost_inst_start">Σ {{savings.instances.length}} instances</td>
                   <td headers="cost_inst_end"></td>
                   <td headers="cost_inst_h">{{savings.hours}}</td>
-                  <td headers="cost_inst_costs">{{savings.costs}}</td>
+                  <td headers="cost_inst_costs">{{format_number(savings.costs)}}</td>
                 </tr>
               </tbody>
             </table>

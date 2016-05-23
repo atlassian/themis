@@ -88,9 +88,22 @@ def remove_NaN(obj):
 			if is_composite(obj[key]):
 				remove_NaN(obj[key])
 
+def inject_aws_endpoint(cmd):
+	try:
+		if not os.environ.AWS_ENDPOINT_URL:
+			return cmd
+		regex = r'^aws ([^\s]+) ([^\s]+)(.*)$'
+		if re.match(regex, cmd):
+			cmd = re.sub(regex, r'aws --endpoint-url="%s/\1/\2" \1 \2\3' % os.environ.AWS_ENDPOINT_URL, cmd)
+	except AttributeError, e:
+		pass
+	print(cmd)
+	return cmd
+
 def run(cmd, cache_duration_secs=0):
 	def do_run(cmd):
 		return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+	cmd = inject_aws_endpoint(cmd)
 	if cache_duration_secs <= 0:
 		return do_run(cmd)
 	hash = md5(cmd)
