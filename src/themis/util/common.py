@@ -100,9 +100,14 @@ def inject_aws_endpoint(cmd):
 	print(cmd)
 	return cmd
 
-def run(cmd, cache_duration_secs=0):
+def run(cmd, cache_duration_secs=0, print_error=False):
 	def do_run(cmd):
-		return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+		try:
+			return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+		except subprocess.CalledProcessError, e:
+			if print_error:
+				print("ERROR: %s" % e.output)
+			raise e
 	cmd = inject_aws_endpoint(cmd)
 	if cache_duration_secs <= 0:
 		return do_run(cmd)

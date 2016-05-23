@@ -83,6 +83,6 @@ def test_aws_cli():
 	print("$PATH: %s" % out)
 	out = common.run("which aws")
 	print("which aws: %s" % out)
-	out = common.run("aws emr list-clusters")
+	out = common.run("aws emr list-clusters", print_error=True)
 	out = json.loads(out)
 	assert out['Clusters'][0]['Id'] == 'testClusterID1'
