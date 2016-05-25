@@ -6,6 +6,9 @@ import json
 import time
 import threading
 import traceback
+import themis
+from themis import config
+from themis.constants import *
 from themis.util import common, monitoring, aws_common, aws_pricing
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
 
@@ -15,43 +18,8 @@ web_dir = root_path + '/../../../web/'
 app = Flask('app', template_folder=web_dir)
 app.root_path = root_path
 
-# time to sleep between loops
-LOOP_SLEEP_TIMEOUT_SECS = 3 * 60
-
-# config file location
-CONFIG_FILE_LOCATION = './autoscaling.config.json'
-CLUSTERS_FILE_LOCATION = './autoscaling.clusters.json'
-
-# global configuration values
-KEY_LOOP_INTERVAL_SECS = 'loop_interval_secs'
-KEY_UPSCALE_ITERATIONS = 'upscale_trigger_iterations'
-KEY_DOWNSCALE_ITERATIONS = 'downscale_trigger_iterations'
-KEY_UPSCALE_EXPR = 'upscale_expr'
-KEY_DOWNSCALE_EXPR = 'downscale_expr'
-KEY_AUTOSCALING_CLUSTERS = 'autoscaling_clusters'
-KEY_PREFERRED_UPSCALE_INSTANCE_MARKET = 'preferred_upscale_instance_market'
-KEY_MONITORING_INTERVAL_SECS = 'monitoring_interval_secs'
-
-# instance market constants
-MARKET_ON_DEMAND = "ON_DEMAND"
-MARKET_SPOT = "SPOT"
-
-KEY = 'key'
-VAL = 'value'
-DESC = 'description'
-DEFAULT_APP_CONFIG = [
-	{KEY: KEY_AUTOSCALING_CLUSTERS, VAL: '', DESC: 'Comma-separated list of cluster IDs to auto-scale'},
-	{KEY: KEY_DOWNSCALE_EXPR, VAL: "1 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes >= 2 and tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0", DESC: 'Trigger cluster downscaling by the number of nodes this expression evaluates to'},
-	{KEY: KEY_UPSCALE_EXPR, VAL: "3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 15 and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0", DESC: "Trigger cluster upscaling by the number of nodes this expression evaluates to"},
-	{KEY: KEY_UPSCALE_ITERATIONS, VAL: "1", DESC: "Number of consecutive times %s needs to evaluate to true before upscaling"},
-	{KEY: KEY_LOOP_INTERVAL_SECS, VAL: LOOP_SLEEP_TIMEOUT_SECS, DESC: 'Loop interval seconds'},
-	{KEY: KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, VAL: MARKET_SPOT, DESC: 'Whether to preferably increase the pool of SPOT instances or ON_DEMAND instances (if both exist in the cluster)'},
-	{KEY: KEY_MONITORING_INTERVAL_SECS, VAL: 60 * 10, DESC: 'Time period (seconds) of historical monitoring data to consider for scaling decisions'}
-]
-
-CLUSTER_LIST = common.load_json_file(CLUSTERS_FILE_LOCATION, [])
 CLUSTERS = {}
-for val in CLUSTER_LIST:
+for val in config.CLUSTER_LIST:
 	CLUSTERS[val['id']] = val
 
 @app.route('/swagger.json')
@@ -70,7 +38,7 @@ def get_state(cluster_id):
 			- name: cluster_id
 			  in: path
 	"""
-	monitoring_interval_secs = int(get_config_value(KEY_MONITORING_INTERVAL_SECS))
+	monitoring_interval_secs = int(config.get_value(KEY_MONITORING_INTERVAL_SECS))
 	info = monitoring.collect_info(CLUSTERS[cluster_id], monitoring_interval_secs=monitoring_interval_secs)
 	return jsonify(info)
 
@@ -93,7 +61,7 @@ def get_clusters():
 		---
 		operationId: 'getClusters'
 	"""
-	return jsonify(results=CLUSTER_LIST)
+	return jsonify(results=config.CLUSTER_LIST)
 
 @app.route('/config', methods=['GET'])
 def get_config():
@@ -101,7 +69,7 @@ def get_config():
 		---
 		operationId: 'getConfig'
 	"""
-	appConfig = read_config()
+	appConfig = config.read()
 	return jsonify({'config': appConfig})
 
 @app.route('/config', methods=['POST'])
@@ -114,8 +82,8 @@ def set_config():
 			  in: body
 	"""
 	newConfig = json.loads(request.data)
-	write_config(newConfig)
-	appConfig = read_config()
+	config.write(newConfig)
+	appConfig = config.read()
 	return jsonify({'config': appConfig})
 
 @app.route('/restart', methods=['POST'])
@@ -175,28 +143,8 @@ def sort_nodes_by_load(nodes, weight_mem=1, weight_cpu=2, desc=False):
 # HELPER FUNCTIONS #
 #------------------#
 
-def read_config():
-	appConfig = common.load_json_file(CONFIG_FILE_LOCATION)
-	if appConfig:
-		return appConfig['config']
-	write_config(DEFAULT_APP_CONFIG)
-	return DEFAULT_APP_CONFIG
-
-def write_config(config):
-	configToStore = {'config': config}
-	common.save_json_file(CONFIG_FILE_LOCATION, configToStore)
-	return config
-
-def get_config_value(key, config=None):
-	if not config:
-		config = read_config()
-	for c in config:
-		if c[KEY] == key:
-			return c[VAL]
-	return None
-
 def get_autoscaling_clusters():
-	return re.split(r'\s*,\s*', get_config_value(KEY_AUTOSCALING_CLUSTERS))
+	return re.split(r'\s*,\s*', config.get_value(KEY_AUTOSCALING_CLUSTERS))
 
 def get_termination_candidates(info, ignore_preferred=False, config=None):
 	candidates = []
@@ -206,7 +154,7 @@ def get_termination_candidates(info, ignore_preferred=False, config=None):
 				details['queries'] = 0
 			# terminate only nodes with 0 queries running
 			if details['queries'] == 0:
-				preferred = get_config_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, config)
+				preferred = themis.config.get_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, config)
 				if ignore_preferred or not preferred:
 					candidates.append(details)
 				else:
@@ -216,7 +164,7 @@ def get_termination_candidates(info, ignore_preferred=False, config=None):
 	return candidates
 
 def get_nodes_to_terminate(info, config=None):
-	expr = get_config_value(KEY_DOWNSCALE_EXPR, config)
+	expr = themis.config.get_value(KEY_DOWNSCALE_EXPR, config)
 	num_downsize = monitoring.execute_dsl_string(expr, info)
 	print("num_downsize: %s" % num_downsize)
 	if not isinstance(num_downsize, int) or num_downsize <= 0:
@@ -245,7 +193,7 @@ def get_nodes_to_terminate(info, config=None):
 	return result
 
 def get_nodes_to_add(info, config=None):
-	expr = get_config_value(KEY_UPSCALE_EXPR, config)
+	expr = themis.config.get_value(KEY_UPSCALE_EXPR, config)
 	num_upsize = monitoring.execute_dsl_string(expr, info)
 	print("num_upsize: %s" % num_upsize)
 	if isinstance(num_upsize, int) and num_upsize > 0:
@@ -265,7 +213,7 @@ def select_tasknode_group(tasknodes_groups):
 		raise Exception("Empty list of task node instance groups for scaling: %s" % tasknodes_groups)
 	if len(tasknodes_groups) == 1:
 		return tasknodes_groups[0]
-	preferred = get_config_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET)
+	preferred = config.get_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET)
 	for group in tasknodes_groups:
 		if group['market'] == preferred:
 			return group
@@ -274,7 +222,7 @@ def select_tasknode_group(tasknodes_groups):
 
 def tick():
 	print("Running next loop iteration")
-	monitoring_interval_secs = int(get_config_value(KEY_MONITORING_INTERVAL_SECS))
+	monitoring_interval_secs = int(config.get_value(KEY_MONITORING_INTERVAL_SECS))
 	for cluster_id, details in CLUSTERS.iteritems():
 		cluster_ip = details['ip']
 		info = monitoring.collect_info(details, monitoring_interval_secs=monitoring_interval_secs)
@@ -310,7 +258,7 @@ def loop():
 		except Exception, e:
 			print("WARN: Exception in main loop: %s" % (e))
 			traceback.print_exc()
-		time.sleep(LOOP_SLEEP_TIMEOUT_SECS)
+		time.sleep(int(config.get_value(KEY_LOOP_INTERVAL_SECS)))
 
 def serve(port):
 	app.run(port=int(port), debug=True, threaded=True, host='0.0.0.0')

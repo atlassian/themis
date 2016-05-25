@@ -1,6 +1,7 @@
 from flask import Flask, request, make_response
 from flask_swagger import swagger
 import json
+import time
 import threading
 
 def serve(port):
@@ -24,6 +25,7 @@ def serve(port):
 	app = GangliaApp()
 	app.daemon = True
 	app.start()
+	time.sleep(1)
 	return app
 
 def mock_ganglia(cpu=None, mem=None):

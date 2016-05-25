@@ -18,6 +18,7 @@ Options:
 import subprocess
 from docopt import docopt
 import math
+from themis import config
 from themis.util import math_util
 from themis.util import aws_pricing
 from themis.util.common import *
@@ -28,6 +29,7 @@ DEFAULT_PORT = 8000
 if __name__ == "__main__":
 	args = docopt(__doc__)
 	if args['server_and_loop']:
+		config.init_clusters_file()
 		def run(cmd):
 			subprocess.call(cmd, shell=True)
 		port = args['<port>'] or DEFAULT_PORT

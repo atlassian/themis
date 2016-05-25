@@ -5,9 +5,8 @@ from datetime import date, timedelta, datetime
 import math
 import time
 import subprocess
-from scipy import integrate
-from scipy import interpolate
-from common import *
+from scipy import integrate, interpolate
+from themis.util.common import *
 
 LOCATION_NAMES = {
 	'us-east-1': 'US East (N. Virginia)'

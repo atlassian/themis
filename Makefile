@@ -8,6 +8,6 @@ test:
 	PYTHONPATH=$(dir)/test nosetests --with-coverage --cover-package=themis test/
 
 server:
-	PYTHONPATH=$(dir)/src src/themis/scaling.py server_and_loop -p 9090
+	PYTHONPATH=$(dir)/src src/themis/main.py server_and_loop -p 9090
 
 .PHONY: build test

@@ -1,17 +1,10 @@
 from themis.scaling.server import *
 from themis.util import common, aws_common
+from constants import *
 import mock.ganglia
-import mock.aws_api
-import uuid
 import os
 
-AWS_API_PORT = 9896
-GANGLIA_PORT = 9897
-
 server = None
-
-def short_uid():
-	return str(uuid.uuid4())[0:8]
 
 def mock_cluster_state(nodes=0, config=None):
 	task_nodes = []
@@ -19,9 +12,9 @@ def mock_cluster_state(nodes=0, config=None):
 		node = {}
 		node['type'] = aws_common.INSTANCE_GROUP_TYPE_TASK
 		node['gid'] = 'testGID'
-		node['cid'] = 'testCID-%s' % short_uid()
-		node['iid'] = 'testIID-%s' % short_uid()
-		node['host'] = 'testhost-%s' % short_uid()
+		node['cid'] = 'testCID-%s' % common.short_uid()
+		node['iid'] = 'testIID-%s' % common.short_uid()
+		node['host'] = 'testhost-%s' % common.short_uid()
 		node['state'] = aws_common.INSTANCE_STATE_RUNNING
 		node['presto_state'] = aws_common.PRESTO_STATE_ACTIVE
 		task_nodes.append(node)
@@ -76,19 +69,3 @@ def test_downscale():
 	nodes = get_nodes_to_terminate(info, config)
 	assert(len(nodes) == 1)
 
-def test_aws_cli():
-	os.environ.AWS_ENDPOINT_URL = 'http://localhost:%s/aws' % AWS_API_PORT
-	server = mock.aws_api.serve(AWS_API_PORT)
-	mock.aws_api.init_aws_cli()
-
-	out = common.run("echo $PATH")
-	print("$PATH: %s" % out)
-	out = common.run("which aws")
-	print("which aws: %s" % out)
-	out = common.run("cat ~/.aws/config")
-	print("~/.aws/config: %s" % out)
-	out = common.run("cat ~/.aws/credentials")
-	print("~/.aws/credentials: %s" % out)
-	out = common.run("aws emr list-clusters", print_error=True)
-	out = json.loads(out)
-	assert out['Clusters'][0]['Id'] == 'testClusterID1'
