@@ -15,9 +15,11 @@
         <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
           <thead>
             <tr>
-              <th ts-criteria="load.name" id="cluster_name" ts-default>Name</th>
+              <th ts-criteria="name" id="cluster_name" ts-default>Name</th>
               <th ts-criteria="host" id="cluster_id">ID</th>
-              <th ts-criteria="load.cpu" id="cluster_ip">IP Address</th>
+              <th ts-criteria="type" id="cluster_type">Type</th>
+              <th ts-criteria="ip" id="cluster_ip">Hostname (Private)</th>
+              <th ts-criteria="ip_public" id="cluster_ip_public">IP (Public)</th>
               <th ts-criteria="autoscale" id="cluster_autoscale">Autoscale?</th>
             </tr>
           </thead>
@@ -25,7 +27,9 @@
             <tr ng-repeat="cluster in clusters track by cluster.id" ts-repeat ng-controller="clusterAutoscaleCtrl">
               <td headers="cluster_name"><a ui-sref="clusters.details({ clusterId: cluster.id })">{{cluster.name}}</a></td>
               <td headers="cluster_id"><a ui-sref="clusters.details({ clusterId: cluster.id })">{{cluster.id}}</a></td>
+              <td headers="cluster_type">{{cluster.type}}</td>
               <td headers="cluster_ip">{{cluster.ip}}</td>
+              <td headers="cluster_ip_public">{{cluster.ip_public}}</td>
               <td headers="cluster_autoscale"><aui-toggle checked="cluster.autoscale" label="'autoscale' + cluster.id"></aui-toggle></td>
             </tr>
           </tbody>

@@ -6,10 +6,10 @@ import math
 import time
 import sqlite3
 from datetime import date, timedelta, datetime
-from common import *
-import common
-import aws_common
 from scipy import integrate
+from themis.util import aws_common, common
+from themis.util.common import *
+from themis.util.remote import run_ssh
 
 # global DB connection
 db_connection = None

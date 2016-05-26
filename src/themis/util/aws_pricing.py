@@ -5,9 +5,8 @@ from datetime import date, timedelta, datetime
 import math
 import time
 import subprocess
-from scipy import integrate
-from scipy import interpolate
-from common import *
+from scipy import integrate, interpolate
+from themis.util.common import *
 
 LOCATION_NAMES = {
 	'us-east-1': 'US East (N. Virginia)'
@@ -207,7 +206,7 @@ def get_cluster_savings(info, baseline_nodes, zone='us-east-1'):
 	# convert timestamps to seconds
 	start_time = start_time / 1000.0
 	end_time = end_time / 1000.0
-	duration_hours = (end_time - start_time) / 60.0 / 60.0
+	duration_hours = math.ceil((end_time - start_time) / 60.0 / 60.0)
 	# compute baseline costs
 	baseline_costs = baseline_nodes * get_fixed_price(zone, default_instance_type) * duration_hours
 

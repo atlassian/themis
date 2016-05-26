@@ -7,6 +7,7 @@ import urllib
 import glob
 import json
 import math
+import uuid
 import pyhive.presto
 from datetime import datetime, timedelta
 from collections import namedtuple
@@ -60,10 +61,13 @@ def load_json_file(file, default=None):
 	f.close()
 	return result
 
-def save_json_file(file, content):
+def save_file(file, content):
 	f = open(file, 'w+')
-	f.write(json.dumps(content))
+	f.write(content)
 	f.close()
+
+def save_json_file(file, content):
+	save_file(file, json.dumps(content))
 
 def is_composite(o):
 	return isinstance(o, list) or isinstance(o, dict)
@@ -88,9 +92,29 @@ def remove_NaN(obj):
 			if is_composite(obj[key]):
 				remove_NaN(obj[key])
 
-def run(cmd, cache_duration_secs=0):
+def short_uid():
+	return str(uuid.uuid4())[0:8]
+
+def inject_aws_endpoint(cmd):
+	try:
+		if not os.environ.AWS_ENDPOINT_URL:
+			return cmd
+		regex = r'^aws ([^\s]+) ([^\s]+)(.*)$'
+		if re.match(regex, cmd):
+			cmd = re.sub(regex, r'aws --endpoint-url="%s/\1/\2" \1 \2\3' % os.environ.AWS_ENDPOINT_URL, cmd)
+	except AttributeError, e:
+		pass
+	return cmd
+
+def run(cmd, cache_duration_secs=0, print_error=False):
 	def do_run(cmd):
-		return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+		try:
+			return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+		except subprocess.CalledProcessError, e:
+			if print_error:
+				print("ERROR: %s" % e.output)
+			raise e
+	cmd = inject_aws_endpoint(cmd)
 	if cache_duration_secs <= 0:
 		return do_run(cmd)
 	hash = md5(cmd)
@@ -110,40 +134,6 @@ def run(cmd, cache_duration_secs=0):
 	f.close()
 	clean_cache()
 	return result
-
-def run_ssh(cmd, host, user=None, keys=None, via_hosts=[], cache_duration_secs=0):
-	if not keys:
-		keys = ['~/.ssh/atl-ai-etl-prod.pem', '~/.ssh/atl-ai-etl-dev.pem', '~/.ssh/ai-etl.pem']
-
-	user = '%s@' % user if user else ''
-
-	agent_forward = ''
-	forward_addendum = ''
-	hostcheck_addendum = '-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
-
-	if len(via_hosts) > 0:
-		agent_forward = '-o ForwardAgent=yes'
-		for via_host in list(reversed(via_hosts)):
-			forward_addendum = ('ssh %s %s%s ' % (hostcheck_addendum,user,via_host)) + forward_addendum
-
-	ssh_cmd_tmpl = 'ssh ' + hostcheck_addendum + ' ' + agent_forward + ' -i %s %s%s "' + forward_addendum + '%s"'
-
-	for key in keys:
-		ssh_cmd = ssh_cmd_tmpl % (key, user, host, cmd)
-		#print(ssh_cmd)
-
-		if len(via_hosts) > 0:
-			run('ssh-add %s 2>&1 > /dev/null' % key)
-
-		try:
-			out = run(ssh_cmd, cache_duration_secs)
-			return out
-		except subprocess.CalledProcessError, e:
-			# TODO find a more elegant solution for this.
-			if 'Permission denied (publickey)' not in e.output:
-				raise e
-
-	raise Exception('Cannot run SSH command with any of the provided ssh keys: %s%s %s %s' % (user,host,cmd,keys))
 
 def md5(string):
 	import hashlib

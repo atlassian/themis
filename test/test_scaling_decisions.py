@@ -1,42 +1,28 @@
 from themis.scaling.server import *
 from themis.util import common, aws_common
+from constants import *
 import mock.ganglia
-import uuid
-
-GANGLIA_PORT = 9897
+import os
 
 server = None
 
-def short_uid():
-	return str(uuid.uuid4())[0:8]
-
 def mock_cluster_state(nodes=0, config=None):
-	# s = {}
-	# s['cluster_id'] = 'testCluster'
-	# for i in ['allnodes', 'tasknodes']:
-	# 	s[i] = {}
-	# 	s[i]['running'] = True
-	# 	s[i]['active'] = True
-	# 	s[i]['count'] = {}
-	# 	s[i]['count']['nodes'] = nodes
-	# s['nodes'] = {}
 	task_nodes = []
 	for i in range(0,nodes):
 		node = {}
 		node['type'] = aws_common.INSTANCE_GROUP_TYPE_TASK
 		node['gid'] = 'testGID'
-		node['cid'] = 'testCID-%s' % short_uid()
-		node['iid'] = 'testIID-%s' % short_uid()
-		node['host'] = 'testhost-%s' % short_uid()
+		node['cid'] = 'testCID-%s' % common.short_uid()
+		node['iid'] = 'testIID-%s' % common.short_uid()
+		node['host'] = 'testhost-%s' % common.short_uid()
 		node['state'] = aws_common.INSTANCE_STATE_RUNNING
 		node['presto_state'] = aws_common.PRESTO_STATE_ACTIVE
-		# s['nodes'][node['cid']] = node
 		task_nodes.append(node)
 	cluster_info = {
 		'id': 'testCluster',
 		'ip': 'localhost:%s' % GANGLIA_PORT,
+		'ip_public': 'localhost:%s' % GANGLIA_PORT,
 		'type': aws_common.CLUSTER_TYPE_PRESTO
-
 	}
 	info = monitoring.collect_info(cluster_info, task_nodes=task_nodes)
 	print(info)
@@ -82,3 +68,4 @@ def test_downscale():
 	info = mock_cluster_state(nodes=4, config=config)
 	nodes = get_nodes_to_terminate(info, config)
 	assert(len(nodes) == 1)
+
