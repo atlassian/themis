@@ -17,7 +17,8 @@ DEFAULT_APP_CONFIG = [
 	{KEY: KEY_UPSCALE_ITERATIONS, VAL: "1", DESC: "Number of consecutive times %s needs to evaluate to true before upscaling"},
 	{KEY: KEY_LOOP_INTERVAL_SECS, VAL: LOOP_SLEEP_TIMEOUT_SECS, DESC: 'Loop interval seconds'},
 	{KEY: KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, VAL: MARKET_SPOT, DESC: 'Whether to prefer increasing the pool of SPOT instances or ON_DEMAND instances (if both exist in the cluster)'},
-	{KEY: KEY_MONITORING_INTERVAL_SECS, VAL: 60 * 10, DESC: 'Time period (seconds) of historical monitoring data to consider for scaling decisions'}
+	{KEY: KEY_MONITORING_INTERVAL_SECS, VAL: 60 * 10, DESC: 'Time period (seconds) of historical monitoring data to consider for scaling decisions'},
+	{KEY: KEY_TIME_BASED_SCALING, VAL: True, DESC: 'Enables time based scaling'}
 ]
 
 # load list of clusters
@@ -76,10 +77,10 @@ def write(config):
 	common.save_json_file(CONFIG_FILE_LOCATION, configToStore)
 	return config
 
-def get_value(key, config=None):
+def get_value(key, config=None, default=None):
 	if not config:
 		config = read()
 	for c in config:
 		if c[KEY] == key:
 			return c[VAL]
-	return None
+	return default

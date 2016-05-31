@@ -9,6 +9,8 @@ KEY_AUTOSCALING_CLUSTERS = 'autoscaling_clusters'
 KEY_PREFERRED_UPSCALE_INSTANCE_MARKET = 'preferred_upscale_instance_market'
 KEY_MONITORING_INTERVAL_SECS = 'monitoring_interval_secs'
 KEY_SSH_KEYS = 'ssh_keys'
+KEY_TIME_BASED_SCALING = 'time_based_scaling'
+KEY_NOW = 'now'
 
 # default time to sleep between loops
 LOOP_SLEEP_TIMEOUT_SECS = 3 * 60
