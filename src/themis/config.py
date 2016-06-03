@@ -31,6 +31,7 @@ def init_clusters_file():
 	if not os.path.isfile(CLUSTERS_FILE_LOCATION):
 		log("Initializing config file with list of clusters from AWS: %s" % CLUSTERS_FILE_LOCATION)
 		cfg = []
+		
 		out = run('aws emr list-clusters')
 		out = json.loads(out)
 		for c in out['Clusters']:

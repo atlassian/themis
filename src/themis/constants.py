@@ -1,4 +1,3 @@
-
 # global configuration values
 KEY_LOOP_INTERVAL_SECS = 'loop_interval_secs'
 KEY_UPSCALE_ITERATIONS = 'upscale_trigger_iterations'

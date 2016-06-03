@@ -275,6 +275,7 @@ def collect_info(cluster_info, task_nodes=None, config=None, monitoring_interval
             result['nodes'][host]['presto_state'] = node_infos[host]
     if result['is_presto']:
         get_presto_node_states(result['nodes'], cluster_ip)
+        
     add_stats(result)
     remove_NaN(result)
     return result
