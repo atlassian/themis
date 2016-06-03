@@ -5,11 +5,14 @@ import json
 import math
 import time
 import sqlite3
-from datetime import date, timedelta, datetime
+import themis
+from datetime import timedelta, datetime
 from scipy import integrate
-from themis.util import aws_common, common
+from themis import constants
+from themis.util import aws_common, common, expr
 from themis.util.common import *
 from themis.util.remote import run_ssh
+
 
 # global DB connection
 db_connection = None
@@ -17,6 +20,7 @@ DB_FILE_NAME = 'monitoring.data.db'
 
 # get data from the last 10 minutes
 MONITORING_INTERVAL_SECS = 60 * 10
+
 
 def remove_nan(array):
 	i = 0
@@ -29,6 +33,7 @@ def remove_nan(array):
 		i += 1
 	return array
 
+
 def get_time_duration(datapoints):
 	start = float('inf')
 	end = 0
@@ -38,13 +43,15 @@ def get_time_duration(datapoints):
 		if d[1] < start:
 			start = d[1]
 	return end - start
+	
 
 def get_node_load_part(cluster_ip, cluster_id, host, type, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	diff_secs = monitoring_interval_secs
 	format = "%m/%d/%Y %H:%M"
 	start_time, end_time = get_start_and_end(diff_secs, format)
 	type_param = 'mem_report' if type == 'mem' else 'cpu_report' if type == 'cpu' else 'invalid'
-	url = 'http://%s/ganglia/graph.php?h=%s&cs=%s&ce=%s&c=%s&g=%s&json=1' % (cluster_ip, host, start_time, end_time, cluster_id, type_param)
+	url = 'http://%s/ganglia/graph.php?h=%s&cs=%s&ce=%s&c=%s&g=%s&json=1' % (
+	cluster_ip, host, start_time, end_time, cluster_id, type_param)
 	cmd = "curl --connect-timeout %s '%s' 2> /dev/null" % (CURL_CONNECT_TIMEOUT, url)
 	result = run(cmd, GANGLIA_CACHE_TIMEOUT)
 	result = json.loads(result)
@@ -81,17 +88,21 @@ def get_node_load_part(cluster_ip, cluster_id, host, type, monitoring_interval_s
 		return 1.0 - (mem_free / mem_total)
 	return float('NaN')
 
+
 def get_node_load_cpu(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	return get_node_load_part(cluster_ip, cluster_id, host, 'cpu', monitoring_interval_secs)
 
+
 def get_node_load_mem(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	return get_node_load_part(cluster_ip, cluster_id, host, 'mem', monitoring_interval_secs)
+
 
 def get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	result = {}
 	result['mem'] = get_node_load_mem(cluster_ip, cluster_id, host, monitoring_interval_secs)
 	result['cpu'] = get_node_load_cpu(cluster_ip, cluster_id, host, monitoring_interval_secs)
 	return result
+
 
 def get_cluster_load(cluster_info, task_nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	cluster_id = cluster_info['id']
@@ -115,11 +126,12 @@ def get_cluster_load(cluster_info, task_nodes=None, monitoring_interval_secs=MON
 				load = get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs)
 				result[host] = load
 			except Exception, e:
-				log("WARN: Unable to get load for node %s: %s" % (host,e))
+				log("WARN: Unable to get load for node %s: %s" % (host, e))
 				result[host] = {}
 
 	parallelize(nodes, query)
 	return result
+
 
 def get_presto_node_states(nodes, cluster_ip):
 	def query(host, node_info):
@@ -135,7 +147,9 @@ def get_presto_node_states(nodes, cluster_ip):
 			# swallow this exception. It occurs if the node has been shutdown (i.e., JVM
 			# process on node is terminated) but the instance has not been terminated yet
 			pass
+
 	parallelize(nodes, query)
+
 
 def get_node_queries(cluster_ip):
 	cmd = 'presto-cli --execute \\"SELECT n.http_uri,count(q.node_id) from system.runtime.nodes n left join (select * from system.runtime.queries where state = \'RUNNING\' ) as q on q.node_id = n.node_id group by n.http_uri\\"'
@@ -168,6 +182,7 @@ def get_idle_task_nodes(queries):
 		if queries[host] == "0":
 			result.append(host)
 	return result
+
 
 def do_add_stats(nodelist, result_map):
 	result_map['average'] = {}
@@ -204,6 +219,7 @@ def do_add_stats(nodelist, result_map):
 	result_map['sum']['queries'] = sum_queries
 	result_map['count']['nodes'] = len(nodelist)
 
+
 def add_stats(data):
 	if 'nodes_list' in data:
 		data['allnodes'] = {}
@@ -213,10 +229,14 @@ def add_stats(data):
 		task_nodes = [n for n in data['nodes_list'] if n['type'] == aws_common.INSTANCE_GROUP_TYPE_TASK]
 		do_add_stats(task_nodes, data['tasknodes'])
 
-def collect_info(cluster_info, task_nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+
+def collect_info(cluster_info, task_nodes=None, config=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	cluster_id = cluster_info['id']
 	cluster_ip = cluster_info['ip']
 	result = {}
+	result['time_based'] = {}
+	result['time_based']['enabled'] = len(json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING, config=config, default="{}"))) > 1
+	result['time_based']['minimum'] = {}
 	result['nodes'] = {}
 	result['cluster_id'] = cluster_id
 	result['is_presto'] = cluster_info['type'] == aws_common.CLUSTER_TYPE_PRESTO
@@ -247,16 +267,19 @@ def collect_info(cluster_info, task_nodes=None, monitoring_interval_secs=MONITOR
 		entry = result['nodes'][host]
 		entry['host'] = host
 		result['nodes_list'].append(entry)
-	node_infos = get_cluster_load(cluster_info, task_nodes=task_nodes, monitoring_interval_secs=monitoring_interval_secs)
+	node_infos = get_cluster_load(cluster_info, task_nodes=task_nodes,
+								  monitoring_interval_secs=monitoring_interval_secs)
 	for host in node_infos:
 		result['nodes'][host]['load'] = node_infos[host]
-		if 'presto_state'in result['nodes'][host]:
+		if 'presto_state' in result['nodes'][host]:
 			result['nodes'][host]['presto_state'] = node_infos[host]
 	if result['is_presto']:
 		get_presto_node_states(result['nodes'], cluster_ip)
+		
 	add_stats(result)
 	remove_NaN(result)
 	return result
+
 
 def history_get_db():
 	local = threading.local()
@@ -273,21 +296,30 @@ def history_get_db():
 		db_connection.commit()
 	return db_connection
 
-def execute_dsl_string(str, context):
-	allnodes = json_namedtuple(json.dumps(context['allnodes']))
-	tasknodes = json_namedtuple(json.dumps(context['tasknodes']))
+
+def execute_dsl_string(str, context, config=None):
+	expr_context = expr.ExprContext(context)
+	allnodes = expr_context.allnodes
+	tasknodes = expr_context.tasknodes
+	time_based = expr_context.time_based
+	time_based.minimum.nodes = get_minimum_nodes
+	now = datetime.utcnow()
+	now_override = themis.config.get_value(constants.KEY_NOW, config=config, default=None)
+	if now_override:
+		now = now_override
 	return eval(str)
+
 
 def history_add(cluster, state, action):
 	nodes = state['nodes']
 	state['nodes'] = {}
 	del state['nodes_list']
 	state['groups'] = {}
-	for key,val in nodes.iteritems():
+	for key, val in nodes.iteritems():
 		instance_id = val['iid']
 		group_id = val['gid']
 		if group_id not in state['groups']:
-			state['groups'][group_id] = {'instances':[]}
+			state['groups'][group_id] = {'instances': []}
 		state['groups'][group_id]['instances'].append({
 			'iid': val['iid']
 			# TODO add more relevant data to persist
@@ -296,16 +328,40 @@ def history_add(cluster, state, action):
 	conn = history_get_db()
 	c = conn.cursor()
 	ms = time.time() * 1000.0
-	c.execute("INSERT INTO states(timestamp,cluster,state,action) VALUES (?,?,?,?)", (ms,cluster,state,action))
+	c.execute("INSERT INTO states(timestamp,cluster,state,action) VALUES (?,?,?,?)", (ms, cluster, state, action))
 	conn.commit()
 
-def history_get(cluster, limit = 100):
+
+def history_get(cluster, limit=100):
 	conn = history_get_db()
 	c = conn.cursor()
-	c.execute("SELECT * FROM states WHERE cluster=? ORDER BY timestamp DESC LIMIT ?", (cluster,limit))
+	c.execute("SELECT * FROM states WHERE cluster=? ORDER BY timestamp DESC LIMIT ?", (cluster, limit))
 	result = [dict((c.description[i][0], value) \
-			   for i, value in enumerate(row)) for row in c.fetchall()]
+				   for i, value in enumerate(row)) for row in c.fetchall()]
 	for entry in result:
 		if 'state' in entry:
 			entry['state'] = json.loads(entry['state'])
 	return result
+
+
+# returns nodes if based on regex dict values
+# assumes no overlapping entries as will grab the first item it matches.
+def get_minimum_nodes(date):
+	now_str = date.strftime("%a %Y-%m-%d %H:%M:%S")
+
+	## this is only used for testing:
+	config = themis.config.TEST_CONFIG
+	dict = json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING,config=config, default=None))
+	nodes_to_return = None
+	for pattern,num_nodes in dict.iteritems():
+		if re.match(pattern, now_str):
+			if nodes_to_return is None:
+				nodes_to_return = num_nodes
+			else:
+				print "WARNING! '%s' Regex Pattern has matched more then once:\nnodes_to_return=%d is now changing to nodes_to_return=%d" % (pattern,nodes_to_return,num_nodes)
+				nodes_to_return = num_nodes
+	## no match revert to default
+	if nodes_to_return is None:
+		return 3
+	else:
+		return nodes_to_return

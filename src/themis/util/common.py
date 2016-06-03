@@ -198,3 +198,5 @@ def run_presto_query(presto_sql, hostname, port=8081):
     else:
         raise Exception("Invalid Presto query: '%s'" % presto_sql)
     return cursor.fetchall()
+
+

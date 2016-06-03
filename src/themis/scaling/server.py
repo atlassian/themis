@@ -165,7 +165,7 @@ def get_termination_candidates(info, ignore_preferred=False, config=None):
 
 def get_nodes_to_terminate(info, config=None):
 	expr = themis.config.get_value(KEY_DOWNSCALE_EXPR, config)
-	num_downsize = monitoring.execute_dsl_string(expr, info)
+	num_downsize = monitoring.execute_dsl_string(expr, info, config)
 	print("num_downsize: %s" % num_downsize)
 	if not isinstance(num_downsize, int) or num_downsize <= 0:
 		return []
@@ -194,7 +194,7 @@ def get_nodes_to_terminate(info, config=None):
 
 def get_nodes_to_add(info, config=None):
 	expr = themis.config.get_value(KEY_UPSCALE_EXPR, config)
-	num_upsize = monitoring.execute_dsl_string(expr, info)
+	num_upsize = monitoring.execute_dsl_string(expr, info, config)
 	print("num_upsize: %s" % num_upsize)
 	if isinstance(num_upsize, int) and num_upsize > 0:
 		return ['TODO' for i in range(0,num_upsize)]
