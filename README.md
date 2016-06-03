@@ -8,6 +8,23 @@ performance.
 
 ![Themis](https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Justitia%2C_Jost_Amman.png/200px-Justitia%2C_Jost_Amman.png)
 
+## Background
+
+Elastic Map Reduce (EMR) is a managed Hadoop environment for Big Data analytics offered by Amazon Web Services (AWS).
+The architecture of EMR clusters is built for scalability, with a single master node and multiple worker nodes that
+can be dynamically added and removed via Amazon's API.
+
+Due to different usage patterns (e.g., high load during work hours, no load over night), the cluster may become either
+underprovisioned (users experience bad performance) or overprovisioned (cluster is idle, causing a waste of resources
+and unnecessary costs).
+
+However, while autoscaling has become state-of-the-art for applications in Amazon's Elastic Compute Cloud (EC2),
+currently there exists no out-of-the-box solution for autoscaling analytics clusters on EMR.
+
+The "Themis" autoscaling tool actively monitors the performance of a user's EMR clusters and automatically scales the
+cluster up and down where appropriate. A Web user interface (UI) is available to display the key data. Themis supports
+both, reactive and proactive autoscaling. The rules for autoscaling can be customized in a configuration file or via
+the Web UI.
 
 ## Requirements
 
