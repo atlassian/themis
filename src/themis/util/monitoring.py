@@ -352,7 +352,16 @@ def get_minimum_nodes(date):
 	## this is only used for testing:
 	config = themis.config.TEST_CONFIG
 	dict = json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING,config=config, default=None))
+	nodes_to_return = None
 	for pattern,num_nodes in dict.iteritems():
 		if re.match(pattern, now_str):
-			return num_nodes
-	return 3
+			if nodes_to_return is None:
+				nodes_to_return = num_nodes
+			else:
+				print "WARNING! '%s' Regex Pattern has matched more then once:\nnodes_to_return=%d is now changing to nodes_to_return=%d" % (pattern,nodes_to_return,num_nodes)
+				nodes_to_return = num_nodes
+	## no match revert to default
+	if nodes_to_return is None:
+		return 3
+	else:
+		return nodes_to_return

@@ -170,3 +170,9 @@ def test_downscale_time_based():
 	info = mock_cluster_state(nodes=17, config=config)
 	nodes = get_nodes_to_terminate(info, config)
 	assert(len(nodes) == 1)
+
+	server.cpu = 40  # mock 40% CPU usage
+	server.mem = 30  # mock 30% memory usage
+	info = mock_cluster_state(nodes=4, config=config)
+	nodes = get_nodes_to_terminate(info, config)
+	assert (len(nodes) == 0)
