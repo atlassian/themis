@@ -195,8 +195,9 @@ def get_nodes_to_terminate(info, config=None):
 def get_nodes_to_add(info, config=None):
 	expr = themis.config.get_value(KEY_UPSCALE_EXPR, config)
 	num_upsize = monitoring.execute_dsl_string(expr, info, config)
+	num_upsize = int(float(num_upsize))
 	print("num_upsize: %s" % num_upsize)
-	if isinstance(num_upsize, int) and num_upsize > 0:
+	if num_upsize > 0:
 		return ['TODO' for i in range(0,num_upsize)]
 	return []
 
@@ -231,21 +232,24 @@ def tick():
 		if details['type'] == 'Presto':
 			# Make sure we don't change clusters that are not configured
 			if cluster_id in get_autoscaling_clusters():
-				nodes_to_terminate = get_nodes_to_terminate(info)
-				if len(nodes_to_terminate) > 0:
-					for node in nodes_to_terminate:
-						terminate_node(cluster_ip, node['ip'], node['gid'])
-					action = 'DOWNSCALE(-%s)' % len(nodes_to_terminate)
-				else:
-					nodes_to_add = get_nodes_to_add(info)
-					if len(nodes_to_add) > 0:
-						tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster_id)
-						tasknodes_group = select_tasknode_group(tasknodes_groups)['id']
-						current_num_nodes = len([n for key,n in info['nodes'].iteritems() if n['gid'] == tasknodes_group])
-						spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, len(nodes_to_add))
-						action = 'UPSCALE(+%s)' % len(nodes_to_add)
+				try:
+					nodes_to_terminate = get_nodes_to_terminate(info)
+					if len(nodes_to_terminate) > 0:
+						for node in nodes_to_terminate:
+							terminate_node(cluster_ip, node['ip'], node['gid'])
+						action = 'DOWNSCALE(-%s)' % len(nodes_to_terminate)
 					else:
-						action = 'NOTHING'
+						nodes_to_add = get_nodes_to_add(info)
+						if len(nodes_to_add) > 0:
+							tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster_id)
+							tasknodes_group = select_tasknode_group(tasknodes_groups)['id']
+							current_num_nodes = len([n for key,n in info['nodes'].iteritems() if n['gid'] == tasknodes_group])
+							spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, len(nodes_to_add))
+							action = 'UPSCALE(+%s)' % len(nodes_to_add)
+						else:
+							action = 'NOTHING'
+				except Exception, e:
+					log("Error downscaling or upscaling nodes: %s" % e)
 				# clean up and terminate instances whose nodes are already in inactive state
 				aws_common.terminate_inactive_nodes(cluster_ip, info['nodes'])
 		# store the state for future reference
