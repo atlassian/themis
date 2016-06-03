@@ -237,7 +237,6 @@ def collect_info(cluster_info, task_nodes=None, config=None, monitoring_interval
     result['time_based'] = {}
     result['time_based']['enabled'] = len(json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING, config=config, default="{}"))) > 1
     result['time_based']['minimum'] = {}
-    result['time_based']['minimum']['nodes'] = get_minimum_nodes
     result['nodes'] = {}
     result['cluster_id'] = cluster_id
     result['is_presto'] = cluster_info['type'] == aws_common.CLUSTER_TYPE_PRESTO
@@ -302,6 +301,7 @@ def execute_dsl_string(str, context, config=None):
     allnodes = expr_context.allnodes
     tasknodes = expr_context.tasknodes
     time_based = expr_context.time_based
+    time_based.minimum.nodes = get_minimum_nodes
     now = datetime.utcnow()
     now_override = themis.config.get_value(constants.KEY_NOW, config=config, default=None)
     if now_override:

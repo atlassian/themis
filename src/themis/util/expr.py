@@ -25,7 +25,7 @@ class TimeBasedScaling:
 
 class TimeBasedMinimumNodes:
     def __init__(self, info):
-        self.nodes = info['nodes']
+       self.nodes = info['nodes'] if 'nodes' in info else []
 
 class ExprContext:
     def __init__(self, context):
