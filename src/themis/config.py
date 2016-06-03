@@ -18,11 +18,14 @@ DEFAULT_APP_CONFIG = [
 	{KEY: KEY_LOOP_INTERVAL_SECS, VAL: LOOP_SLEEP_TIMEOUT_SECS, DESC: 'Loop interval seconds'},
 	{KEY: KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, VAL: MARKET_SPOT, DESC: 'Whether to prefer increasing the pool of SPOT instances or ON_DEMAND instances (if both exist in the cluster)'},
 	{KEY: KEY_MONITORING_INTERVAL_SECS, VAL: 60 * 10, DESC: 'Time period (seconds) of historical monitoring data to consider for scaling decisions'},
-	{KEY: KEY_TIME_BASED_SCALING, VAL: True, DESC: 'Enables time based scaling'}
+	{KEY: KEY_TIME_BASED_SCALING, VAL: "{}", DESC: 'Enables utc time based scaling based on regex expressions i.e {"(Mon|Tue|Wed|Thu|Fri).*01:.*:.*" : 1}. Not used if JSON is empty i.e {}'}
 ]
 
 # load list of clusters
 CLUSTER_LIST = common.load_json_file(CLUSTERS_FILE_LOCATION, [])
+
+# set this to override config for testing
+TEST_CONFIG = None
 
 def init_clusters_file():
 	if not os.path.isfile(CLUSTERS_FILE_LOCATION):

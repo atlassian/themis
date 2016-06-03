@@ -21,34 +21,6 @@ DB_FILE_NAME = 'monitoring.data.db'
 # get data from the last 10 minutes
 MONITORING_INTERVAL_SECS = 60 * 10
 
-# Static dictionary for minimum nodes per UTC hour (place holder for now)
-MIN_NODES = {
-	"0": 10,
-	"1": 14,
-	"2": 12,
-	"3": 10,
-	"4": 10,
-	"5": 10,
-	"6": 10,
-	"7": 4,
-	"8": 4,
-	"9": 4,
-	"10": 4,
-	"11": 5,
-	"12": 5,
-	"13": 6,
-	"14": 6,
-	"15": 6,
-	"16": 6,
-	"17": 7,
-	"18": 8,
-	"19": 8,
-	"20": 8,
-	"21": 8,
-	"22": 10,
-	"23": 10
-}
-
 
 def remove_nan(array):
     i = 0
@@ -204,7 +176,6 @@ def get_node_queries(cluster_ip):
                 result[host] = 0
     return result
 
-
 def get_idle_task_nodes(queries):
     result = []
     for host in queries:
@@ -263,15 +234,10 @@ def collect_info(cluster_info, task_nodes=None, config=None, monitoring_interval
     cluster_id = cluster_info['id']
     cluster_ip = cluster_info['ip']
     result = {}
-
     result['time_based'] = {}
-    result['time_based']['enabled'] = themis.config.get_value(constants.KEY_TIME_BASED_SCALING, config=config, default="").lower() == "true"
-
-    #print themis.config.get_value(constants.KEY_NOW, config=config, default=""), " : this should be the date"
-
+    result['time_based']['enabled'] = len(json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING, config=config, default="{}"))) > 1
     result['time_based']['minimum'] = {}
     result['time_based']['minimum']['nodes'] = get_minimum_nodes
-
     result['nodes'] = {}
     result['cluster_id'] = cluster_id
     result['is_presto'] = cluster_info['type'] == aws_common.CLUSTER_TYPE_PRESTO
@@ -337,10 +303,7 @@ def execute_dsl_string(str, context, config=None):
     tasknodes = expr_context.tasknodes
     time_based = expr_context.time_based
     now = datetime.utcnow()
-    print config
-    print themis.config.get_value(constants.KEY_NOW, config=config, default=None)
     now_override = themis.config.get_value(constants.KEY_NOW, config=config, default=None)
-    print "overriding date: " ,now_override
     if now_override:
         now = now_override
     return eval(str)
@@ -380,20 +343,15 @@ def history_get(cluster, limit=100):
     return result
 
 
-# returns nodes if time overlaps with SF,Syd,Aust 8-6 mon-friday workhours
+# returns nodes if based on regex dict values
+# assumes no overlapping entries as will grab the first item it matches.
 def get_minimum_nodes(date):
-    print "date parsed in is:" , date
-    sydtime = date + timedelta(hours=10)
-    sftime = date + timedelta(hours=-7)
-    austime = date + timedelta(hours=-5)
+    now_str = date.strftime("%a %Y-%m-%d %H:%M:%S")
 
-    # check times
-    if sydtime.weekday() < 5 and 8 <= sydtime.hour <= 18:
-        print MIN_NODES[str(date.hour)]
-        return MIN_NODES[str(date.hour)]
-    elif sftime.weekday() < 5 and 8 <= sftime.hour <= 18:
-        return MIN_NODES[str(date.hour)]
-    elif austime.weekday() < 5 and 8 <= austime.hour <= 18:
-        return MIN_NODES[str(date.hour)]
-    else:
-        return 2 # default
+    ## this is only used for testing:
+    config = themis.config.TEST_CONFIG
+    dict = json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING,config=config, default=None))
+    for pattern,num_nodes in dict.iteritems():
+        if re.match(pattern, now_str):
+            return num_nodes
+    return 3
