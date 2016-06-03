@@ -12,8 +12,11 @@ CLUSTERS_FILE_LOCATION = os.path.join(ROOT_PATH, 'autoscaling.clusters.json')
 DEFAULT_APP_CONFIG = [
 	{KEY: KEY_SSH_KEYS, VAL: '~/.ssh/atl-ai-etl-prod.pem,~/.ssh/atl-ai-etl-dev.pem,~/.ssh/ai-etl.pem', DESC: 'Comma-separated list of SSH public key files to use for connecting to the clusters.'},
 	{KEY: KEY_AUTOSCALING_CLUSTERS, VAL: '', DESC: 'Comma-separated list of cluster IDs to auto-scale'},
-	{KEY: KEY_DOWNSCALE_EXPR, VAL: "1 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes >= 2 and tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0", DESC: 'Trigger cluster downscaling by the number of nodes this expression evaluates to'},
-	{KEY: KEY_UPSCALE_EXPR, VAL: "3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 15 and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0", DESC: "Trigger cluster upscaling by the number of nodes this expression evaluates to"},
+	{KEY: KEY_DOWNSCALE_EXPR, VAL: """1 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes > time_based.minimum.nodes(now) and tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) \
+												else 0""", DESC: 'Trigger cluster downscaling by the number of nodes this expression evaluates to'},
+	{KEY: KEY_UPSCALE_EXPR, VAL: """(time_based.minimum.nodes(now) - tasknodes.count.nodes) if (time_based.enabled and time_based.minimum.nodes(now) > tasknodes.count.nodes) \
+	 											else (3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) \
+    										   else 0)""", DESC: "Trigger cluster upscaling by the number of nodes this expression evaluates to"},
 	{KEY: KEY_UPSCALE_ITERATIONS, VAL: "1", DESC: "Number of consecutive times %s needs to evaluate to true before upscaling"},
 	{KEY: KEY_LOOP_INTERVAL_SECS, VAL: LOOP_SLEEP_TIMEOUT_SECS, DESC: 'Loop interval seconds'},
 	{KEY: KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, VAL: MARKET_SPOT, DESC: 'Whether to prefer increasing the pool of SPOT instances or ON_DEMAND instances (if both exist in the cluster)'},
