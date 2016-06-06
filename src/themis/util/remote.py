@@ -12,7 +12,7 @@ def run_ssh(cmd, host, user=None, keys=None, via_hosts=[], cache_duration_secs=0
 
 	agent_forward = ''
 	forward_addendum = ''
-	ssh_configs = '-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o ConnectTimeout=3'
+	ssh_configs = '-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o PasswordAuthentication=no -o BatchMode=yes -o ConnectTimeout=3'
 
 	if len(via_hosts) > 0:
 		agent_forward = '-o ForwardAgent=yes'
