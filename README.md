@@ -74,7 +74,19 @@ aws configure
 ```
 
 For the configuration of the autoscaler itself, there are a number of settings that you can
-configure directly in the Web UI (see below).
+configure directly in the Web UI (see table below):
+
+Configuration Key					| 	Description
+------------------------------------|--------------------------------
+`autoscaling_clusters`				|	Comma-separated list of cluster IDs to auto-scale
+`downscale_expr`					|	Trigger cluster downscaling by the number of nodes this expression evaluates to
+`loop_interval_secs`				|	Loop interval seconds
+`monitoring_interval_secs`			|	Time period (seconds) of historical monitoring data to consider for scaling decisions
+`preferred_upscale_instance_market`	|	Whether to prefer increasing the pool of SPOT instances or ON_DEMAND instances (if both exist in the cluster)	
+`ssh_keys`							|	Comma-separated list of SSH public key files to use for connecting to the clusters.
+`time_based_scaling`				|	A JSON string that maps date regular expressions to minimum number of nodes. Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". Example config: {"(Mon|Tue|Wed|Thu|Fri).*01:.*:.*": 1}
+`upscale_expr`						|	Trigger cluster upscaling by the number of nodes this expression evaluates to
+
 
 ## Running
 

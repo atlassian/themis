@@ -227,34 +227,40 @@ def tick():
 	monitoring_interval_secs = int(config.get_value(KEY_MONITORING_INTERVAL_SECS))
 	for cluster_id, details in CLUSTERS.iteritems():
 		cluster_ip = details['ip']
+		info = None
 		try:
 			info = monitoring.collect_info(details, monitoring_interval_secs=monitoring_interval_secs)
+		except Exception, e:
+			log("WARNING: Error getting monitoring info for cluster %s: %s" % (cluster_id, e))
+		if info:
 			action = 'N/A'
 			# Make sure we are only resizing Presto clusters atm
 			if details['type'] == 'Presto':
 				# Make sure we don't change clusters that are not configured
 				if cluster_id in get_autoscaling_clusters():
-					nodes_to_terminate = get_nodes_to_terminate(info)
-					if len(nodes_to_terminate) > 0:
-						for node in nodes_to_terminate:
-							terminate_node(cluster_ip, node['ip'], node['gid'])
-						action = 'DOWNSCALE(-%s)' % len(nodes_to_terminate)
-					else:
-						nodes_to_add = get_nodes_to_add(info)
-						if len(nodes_to_add) > 0:
-							tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster_id)
-							tasknodes_group = select_tasknode_group(tasknodes_groups)['id']
-							current_num_nodes = len([n for key,n in info['nodes'].iteritems() if n['gid'] == tasknodes_group])
-							spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, len(nodes_to_add))
-							action = 'UPSCALE(+%s)' % len(nodes_to_add)
+					try:
+						nodes_to_terminate = get_nodes_to_terminate(info)
+						if len(nodes_to_terminate) > 0:
+							for node in nodes_to_terminate:
+								terminate_node(cluster_ip, node['ip'], node['gid'])
+							action = 'DOWNSCALE(-%s)' % len(nodes_to_terminate)
 						else:
-							action = 'NOTHING'
+							nodes_to_add = get_nodes_to_add(info)
+							if len(nodes_to_add) > 0:
+								tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster_id)
+								tasknodes_group = select_tasknode_group(tasknodes_groups)['id']
+								current_num_nodes = len([n for key,n in info['nodes'].iteritems() if n['gid'] == tasknodes_group])
+								spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, len(nodes_to_add))
+								action = 'UPSCALE(+%s)' % len(nodes_to_add)
+							else:
+								action = 'NOTHING'
+					except Exception, e:
+						log("WARNING: Error downscaling/upscaling cluster %s: %s" % (cluster_id, e))
 					# clean up and terminate instances whose nodes are already in inactive state
 					aws_common.terminate_inactive_nodes(cluster_ip, info['nodes'])
 			# store the state for future reference
 			monitoring.history_add(cluster_id, info, action)
-		except Exception, e:
-			log("WARNING: Error downscaling/upscaling nodes for cluster %s: %s" % (cluster_id, e))
+
 
 def loop():
 	while True:

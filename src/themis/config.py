@@ -17,7 +17,6 @@ DEFAULT_APP_CONFIG = [
 	{KEY: KEY_UPSCALE_EXPR, VAL: """(time_based.minimum.nodes(now) - tasknodes.count.nodes) if (time_based.enabled and time_based.minimum.nodes(now) > tasknodes.count.nodes) \
 	 											else (3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) \
     										   else 0)""", DESC: "Trigger cluster upscaling by the number of nodes this expression evaluates to"},
-	{KEY: KEY_UPSCALE_ITERATIONS, VAL: "1", DESC: "Number of consecutive times %s needs to evaluate to true before upscaling"},
 	{KEY: KEY_LOOP_INTERVAL_SECS, VAL: LOOP_SLEEP_TIMEOUT_SECS, DESC: 'Loop interval seconds'},
 	{KEY: KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, VAL: MARKET_SPOT, DESC: 'Whether to prefer increasing the pool of SPOT instances or ON_DEMAND instances (if both exist in the cluster)'},
 	{KEY: KEY_MONITORING_INTERVAL_SECS, VAL: 60 * 10, DESC: 'Time period (seconds) of historical monitoring data to consider for scaling decisions'},
