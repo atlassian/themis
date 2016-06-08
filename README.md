@@ -60,6 +60,31 @@ target:
 make test
 ```
 
+The test framework automatically collects and reports test coverage metrics (line coverage):
+
+```
+Name                         Stmts   Miss  Cover   Missing
+----------------------------------------------------------
+themis.py                        0      0   100%
+themis/config.py                61     32    48%   33-72
+themis/constants.py             16      0   100%
+themis/scaling.py                0      0   100%
+themis/scaling/server.py       172     98    43%   24, 28-31, 42-44, 55-57, 65, 73-74, 85-88, ...
+themis/util.py                   0      0   100%
+themis/util/aws_common.py      112     45    60%   20, 26-29, 47, 50-51, 62, 65-69, 80-81, 94-96, ...
+themis/util/aws_pricing.py     187     71    62%   20-40, 71, 74, 77, 83-87, 90-91, 94-105, ...
+themis/util/common.py          166     16    90%   45, 54, 79, 85, 91, 101, 115, 154-156, 181, 195-200
+themis/util/expr.py             28      0   100%
+themis/util/monitoring.py      296     82    72%   61, 87, 89, 113, 121-130, 142, 149, 160, 166-177, ...
+themis/util/remote.py           29      6    79%   18-20, 29, 33, 39
+----------------------------------------------------------
+TOTAL                         1067    350    67%
+----------------------------------------------------------------------
+Ran 7 tests in 43.473s
+
+OK
+```
+
 The set of tests is currently rather small, but we seek to improve the test coverage as the
 tool evolves.
 
@@ -100,7 +125,26 @@ eval `ssh-agent -s`
 make server
 ```
 
+## Contributing
+
+We welcome feedback, bug reports, and pull requests!
+
+For pull requests, please stick to the following guidelines:
+
+* Add tests for any new features and bug fixes. Ideally, each PR should increase the test coverage.
+* Follow the existing style (e.g., tab indents).
+* Put a reasonable amount of comments into the code.
+* Separate unrelated changes into multiple pull requests.
+
+Please note that we need to collect a signed **Contributors License Agreement** from each
+individual developer who contributes code to this repository. Please refer to the following links:
+
+* [https://developer.atlassian.com/opensource/](https://developer.atlassian.com/opensource/)
+* [https://na2.docusign.net/Member/PowerFormSigning.aspx?PowerFormId=3f94fbdc-2fbe-46ac-b14c-5d152700ae5d](https://na2.docusign.net/Member/PowerFormSigning.aspx?PowerFormId=3f94fbdc-2fbe-46ac-b14c-5d152700ae5d)
+
 ## License
+
+Copyright (c) 2016 Atlassian and others.
 
 Themis is released under the Apache License, Version 2.0 (see LICENSE.txt).
 
