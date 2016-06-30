@@ -5,7 +5,7 @@ build:
 	cd $(dir)/web/ && npm install
 
 test:
-	PYTHONPATH=$(dir)/test nosetests --with-coverage --cover-package=themis test/
+	PYTHONPATH=$(dir)/test nosetests --with-coverage --with-xunit --cover-package=themis test/
 
 lint:
 	pylint --rcfile=.pylintrc src/
