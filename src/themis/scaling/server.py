@@ -108,14 +108,6 @@ def restart_node():
 				return jsonify({'result': 'SUCCESS'});
 	return jsonify({'result': 'Invalid cluster ID provided'});
 
-@app.route('/')
-def hello():
-	return render_template('index.html')
-
-@app.route('/<path:path>')
-def send_static(path):
-	return send_from_directory(web_dir + '/', path)
-
 @app.route('/costs', methods=['POST'])
 def get_costs():
 	""" Get summary of cluster costs and cost savings
@@ -133,6 +125,14 @@ def get_costs():
 	common.remove_NaN(info)
 	result = aws_pricing.get_cluster_savings(info, baseline_nodes)
 	return jsonify(results=result)
+
+@app.route('/')
+def hello():
+	return render_template('index.html')
+
+@app.route('/<path:path>')
+def send_static(path):
+	return send_from_directory(web_dir + '/', path)
 
 def sort_nodes_by_load(nodes, weight_mem=1, weight_cpu=2, desc=False):
 	return sorted(nodes, reverse=desc, key=lambda node: (\

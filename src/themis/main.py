@@ -4,11 +4,11 @@
 Main script for cluster auto-scaling based on monitoring data.
 
 Usage:
-  scaling.py build
-  scaling.py server [ (-p | --port) <port> ]
-  scaling.py loop
-  scaling.py server_and_loop [ (-p | --port) <port> ]
-  scaling.py (-h | --help)
+  main.py build
+  main.py server [ (-p | --port) <port> ]
+  main.py loop
+  main.py server_and_loop [ (-p | --port) <port> ]
+  main.py (-h | --help)
 
 Options:
   -h --help     Show this screen.
