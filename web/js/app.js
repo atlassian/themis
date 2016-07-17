@@ -28,7 +28,7 @@
       }
     }).
     state('clusters.details', {
-      url: '/:clusterId',
+      url: '/:clusterId/:tab',
       views: {
         "details@clusters": {
           templateUrl: 'views/clusters.details.html',

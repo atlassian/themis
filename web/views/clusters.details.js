@@ -11,10 +11,21 @@
     $scope.history = {};
     $scope.refreshing = {};
     $scope.savings = {};
+    $scope.settings = {};
     $scope.active_tab = 1;
     $scope.clusterId = $stateParams.clusterId;
     $scope.baseline_nodes = 15;
     var timer = null;
+
+    if($stateParams.tab) {
+      var tabs = {
+        'current': 1,
+        'history': 2,
+        'costs': 3,
+        'settings': 4
+      }
+      $scope.active_tab = tabs[$stateParams.tab];
+    }
 
     var startLoop = function(saved_per_second) {
       stopLoop();
@@ -77,7 +88,7 @@
           console.log(err);
         });
 
-        /* load history */
+        /* load savings */
         $scope.savings.saved = 'n/a';
         client.default.getCosts({request: {
               cluster_id: $scope.clusterId,
@@ -89,6 +100,9 @@
           $scope.savings.loading = false;
           console.log(err);
         });
+
+        /* load config */
+        $scope.loadConfig();
       })
     };
 
@@ -110,6 +124,37 @@
           });
         });
         $scope.$apply();
+      });
+    };
+
+    $scope.loadConfig = function() {
+      client.then(function(client) {
+        $scope.settings.loading = true;
+        client.default.getConfig({
+            section: $stateParams.clusterId
+        }).then(function(obj) {
+          $scope.settings.loading = false;
+          $scope.settings.config = obj.obj.config;
+        }, function(err) {
+          $scope.settings.loading = false;
+          console.log(err);
+        });
+      });
+    };
+
+    $scope.saveConfig = function() {
+      client.then(function(client) {
+        $scope.settings.loading = true;
+        client.default.setConfig({
+              section: $stateParams.clusterId,
+              config: $scope.settings.config
+        }).then(function(obj) {
+          $scope.settings.loading = false;
+          $scope.settings.config = obj.obj.config;
+        }, function(err) {
+          $scope.settings.loading = false;
+          console.log(err);
+        });
       });
     };
 

@@ -23,6 +23,9 @@ DB_FILE_NAME = 'monitoring.data.db'
 # get data from the last 10 minutes
 MONITORING_INTERVAL_SECS = 60 * 10
 
+# default minimum task nodes
+DEFAULT_MIN_TASK_NODES = 1
+
 
 def remove_nan(array):
 	i = 0
@@ -232,12 +235,14 @@ def add_stats(data):
 		do_add_stats(task_nodes, data['tasknodes'])
 
 
-def collect_info(cluster_info, task_nodes=None, config=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+def collect_info(cluster_info, task_nodes=None, config=None,
+		monitoring_interval_secs=MONITORING_INTERVAL_SECS):
 	cluster_id = cluster_info['id']
 	cluster_ip = cluster_info['ip']
 	result = {}
 	result['time_based'] = {}
-	result['time_based']['enabled'] = len(json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING, config=config, default="{}"))) > 1
+	result['time_based']['enabled'] = len(json.loads(themis.config.get_value(
+		constants.KEY_TIME_BASED_SCALING, config=config, default="{}", section=cluster_id))) > 1
 	result['time_based']['minimum'] = {}
 	result['nodes'] = {}
 	result['cluster_id'] = cluster_id
@@ -294,7 +299,8 @@ def history_get_db():
 		db_connection = sqlite3.connect(DB_FILE_NAME)
 		local.db_connection = db_connection
 		c = db_connection.cursor()
-		c.execute('CREATE TABLE IF NOT EXISTS states (timestamp text unique, cluster text, state text, action text)')
+		c.execute('CREATE TABLE IF NOT EXISTS states ' +
+			'(timestamp text unique, cluster text, state text, action text)')
 		db_connection.commit()
 	return db_connection
 
@@ -304,7 +310,10 @@ def execute_dsl_string(str, context, config=None):
 	allnodes = expr_context.allnodes
 	tasknodes = expr_context.tasknodes
 	time_based = expr_context.time_based
-	time_based.minimum.nodes = get_minimum_nodes
+	cluster_id = context['cluster_id']
+	def get_min_nodes_for_cluster(date):
+		return get_minimum_nodes(date, cluster_id)
+	time_based.minimum.nodes = get_min_nodes_for_cluster
 	now = datetime.utcnow()
 	now_override = themis.config.get_value(constants.KEY_NOW, config=config, default=None)
 	if now_override:
@@ -330,14 +339,16 @@ def history_add(cluster, state, action):
 	conn = history_get_db()
 	c = conn.cursor()
 	ms = time.time() * 1000.0
-	c.execute("INSERT INTO states(timestamp,cluster,state,action) VALUES (?,?,?,?)", (ms, cluster, state, action))
+	c.execute("INSERT INTO states(timestamp,cluster,state,action) " +
+		"VALUES (?,?,?,?)", (ms, cluster, state, action))
 	conn.commit()
 
 
 def history_get(cluster, limit=100):
 	conn = history_get_db()
 	c = conn.cursor()
-	c.execute("SELECT * FROM states WHERE cluster=? ORDER BY timestamp DESC LIMIT ?", (cluster, limit))
+	c.execute("SELECT * FROM states WHERE cluster=? " +
+		"ORDER BY timestamp DESC LIMIT ?", (cluster, limit))
 	result = [dict((c.description[i][0], value) \
 				   for i, value in enumerate(row)) for row in c.fetchall()]
 	for entry in result:
@@ -348,12 +359,13 @@ def history_get(cluster, limit=100):
 
 # returns nodes if based on regex dict values
 # assumes no overlapping entries as will grab the first item it matches.
-def get_minimum_nodes(date):
+def get_minimum_nodes(date, cluster_id):
 	now_str = date.strftime("%a %Y-%m-%d %H:%M:%S")
 
 	## this is only used for testing:
 	config = themis.config.TEST_CONFIG
-	dict = json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING,config=config, default=None))
+	dict = json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING,
+		config=config, default=None, section=cluster_id))
 	nodes_to_return = None
 	for pattern,num_nodes in dict.iteritems():
 		if re.match(pattern, now_str):
@@ -365,6 +377,5 @@ def get_minimum_nodes(date):
 				nodes_to_return = num_nodes
 	## no match revert to default
 	if nodes_to_return is None:
-		return 3
-	else:
-		return nodes_to_return
+		return DEFAULT_MIN_TASK_NODES
+	return nodes_to_return

@@ -49,12 +49,11 @@ if __name__ == "__main__":
 			pass
 	else:
 		if args['server']:
-			from scaling import server
-			server.serve(port)
+			from scaling import api
+			api.serve(port)
 		if args['loop']:
 			from scaling import server
 			try:
 				server.loop()
 			except KeyboardInterrupt, e:
 				pass
-

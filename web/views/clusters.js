@@ -44,8 +44,11 @@
         });
       },
       getConfig: function(callback) {
+        var section = 'global'; // TODO parameterize
         return client.then(function(client) {
-          return client.default.getConfig().then(function(config) {
+          return client.default.getConfig({
+            section: section
+          }).then(function(config) {
             config = config.obj.config;
             if(callback)
               return callback(config);
@@ -54,8 +57,12 @@
         });
       },
       setConfig: function(config, callback) {
+        var section = 'global'; // TODO parameterize
         return client.then(function(client) {
-          return client.default.setConfig({config:config}).then(function(config) {
+          return client.default.setConfig({
+              config: config,
+              section: section
+            }).then(function(config) {
             config = config.obj.config;
             if(callback)
               return callback(config);

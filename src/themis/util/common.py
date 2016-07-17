@@ -29,6 +29,7 @@ STATIC_INFO_CACHE_TIMEOUT = 60 * 30
 # cache globals
 last_cache_clean_time = 0
 mutex_clean = threading.Semaphore(1)
+mutex_popen = threading.Semaphore(1)
 
 def get_logger(name=None):
 	log = logging.getLogger(name)
@@ -122,13 +123,26 @@ def inject_aws_endpoint(cmd):
 		pass
 	return cmd
 
-def run(cmd, cache_duration_secs=0, log_error=False):
+def run(cmd, cache_duration_secs=0, log_error=False, retries=0):
 	def do_run(cmd):
 		try:
-			return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+			mutex_popen.acquire()
+			#process = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+			process = subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+			mutex_popen.release()
+			output = ''
+			for line in iter(process.stdout.readline, ''):
+				output += line
+			out, err = process.communicate()
+			if process.returncode != 0:
+				raise subprocess.CalledProcessError(process.returncode, cmd, output=output)
+			return output
 		except subprocess.CalledProcessError, e:
 			if log_error:
-				LOG.error("Error running command '%s': %s" % (cmd, e.output))
+				LOG.error("%s" % e.output)
+			if retries > 0:
+				LOG.info("INFO: Re-running command '%s'" % cmd)
+				return run(cmd, cache_duration_secs, log_error, retries - 1)
 			raise e
 	cmd = inject_aws_endpoint(cmd)
 	if cache_duration_secs <= 0:

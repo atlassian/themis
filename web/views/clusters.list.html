@@ -21,6 +21,7 @@
               <th ts-criteria="ip" id="cluster_ip">Hostname (Private)</th>
               <th ts-criteria="ip_public" id="cluster_ip_public">IP (Public)</th>
               <th ts-criteria="autoscale" id="cluster_autoscale">Autoscale?</th>
+              <th id="cluster_settings">Details</th>
             </tr>
           </thead>
           <tbody>
@@ -31,6 +32,7 @@
               <td headers="cluster_ip">{{cluster.ip}}</td>
               <td headers="cluster_ip_public">{{cluster.ip_public}}</td>
               <td headers="cluster_autoscale"><aui-toggle checked="cluster.autoscale" label="'autoscale' + cluster.id"></aui-toggle></td>
+              <td headers="cluster_id"><a ui-sref="clusters.details({ clusterId: cluster.id, tab: 'settings' })">Settings</a></td>
             </tr>
           </tbody>
         </table>

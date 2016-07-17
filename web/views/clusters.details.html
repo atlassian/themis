@@ -32,6 +32,9 @@
           <li class="menu-item" ng-class="{'active-tab' : active_tab==3}">
               <a ng-click="active_tab=3">Costs</a>
           </li>
+          <li class="menu-item" ng-class="{'active-tab' : active_tab==4}">
+              <a ng-click="active_tab=4">Settings</a>
+          </li>
         </ul>
         <div class="tabs-pane" ng-class="{'active-pane' : active_tab==1}" id="tabs-first" style="padding: 20px;">
 
@@ -155,6 +158,29 @@
             <img src="img/loading.gif" alt="loading"/> loading data ...
           </div>
 
+        </div>
+        <div class="tabs-pane" ng-class="{'active-pane' : active_tab==4}" id="tabs-fourth" style="padding: 20px;">
+          <form class="aui">
+            <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
+              <thead>
+                <tr>
+                  <th ts-criteria="key" id="config_key" ts-default>Key</th>
+                  <th ts-criteria="load.cpu" id="config_descr">Description</th>
+                  <th ts-criteria="value" id="config_value" style="width: 40%">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="entry in settings.config track by entry.key" ts-repeat>
+                  <td headers="config_key">{{entry.key}}</td>
+                  <td headers="config_descr">{{entry.description}}</td>
+                  <td headers="config_value"><input class="text long-field" ng-model="entry.value" style="width: 100%"/></td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="margin-top: 20px">
+              <button class="aui-button aui-button-primary" ng-click="saveConfig()">Save</button>
+            </div>
+          </form>
         </div>
       </div>
 

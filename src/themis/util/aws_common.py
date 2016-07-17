@@ -77,7 +77,7 @@ def get_instance_group_for_node(cluster_id, node_host):
 
 def get_cluster_nodes(cluster_id):
 	cmd = 'aws emr list-instances --cluster-id=%s' % cluster_id
-	result = run(cmd, QUERY_CACHE_TIMEOUT)
+	result = run(cmd, cache_duration_secs=QUERY_CACHE_TIMEOUT, retries=1)
 	result = json.loads(result)
 	result = result['Instances']
 	i = 0

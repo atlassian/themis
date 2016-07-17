@@ -16,7 +16,9 @@
     $scope.load = function() {
       client.then(function(client) {
         $scope.loading = true;
-        client.default.getConfig().then(function(obj) {
+        client.default.getConfig({
+          section: 'global'
+        }).then(function(obj) {
           $scope.loading = false;
           setConfigData(obj.obj);
         }, function(err) {
@@ -29,7 +31,10 @@
     $scope.save = function() {
       client.then(function(client) {
         /* load config */
-        client.default.setConfig({config:$scope.config}).then(function(obj) {
+        client.default.setConfig({
+          config:$scope.config,
+          section: 'global'
+        }).then(function(obj) {
           setConfigData(obj.obj);
         }, function(err) {
           console.log(err);
