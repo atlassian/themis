@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/atlassian/themis.png)](https://travis-ci.org/atlassian/themis)
+
 # Themis - Autoscaling EMR Clusters on AWS
 
 Themis is an autoscaler for Elastic Map Reduce (EMR) clusters on Amazon Web Services.
@@ -49,6 +51,12 @@ run the following command:
 
 ```
 sudo yum -y install blas-devel lapack-devel numpy-f2py
+```
+
+Under Ubuntu, the following packages are required (tested under Ubuntu 15.04):
+
+```
+sudo apt-get -y install libblas-dev liblapack-dev python-numpy gfortran
 ```
 
 ## Testing
