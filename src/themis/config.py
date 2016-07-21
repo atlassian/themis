@@ -43,8 +43,9 @@ LOG = common.get_logger(__name__)
 
 def init_clusters_file():
 	cfg = []
-	mutex = threading.Semaphore(1)
-	run_parallel = True
+	# Don't run this in parallel for now. There seems to be an issue with
+	# the AWS CLI or API if we run multiple "aws ..." commands in parallel
+	run_parallel = False
 
 	def init_cluster_config(c):
 		if c['Status']['State'][0:10] != 'TERMINATED':
@@ -71,7 +72,7 @@ def init_clusters_file():
 				for g in cluster_details['InstanceGroups']:
 					if g['InstanceGroupType'] == 'MASTER':
 						cmd = 'aws emr list-instances --cluster-id=%s' % c['Id']
-						out2 = run(cmd, retries=1)
+						out2 = run(cmd, retries=6)
 						if not out2:
 							LOG.warning("No output for command '%s'" % cmd)
 						out2 = json.loads(out2)

@@ -4,7 +4,7 @@
 #################
 # configuration
 #################
-loc=/var/local/autoscaling-framework
+loc=/var/local/themis
 user=ec2-user
 port=8081
 #################
@@ -13,44 +13,44 @@ port=8081
 running=`ps aux | grep server_and_loop | grep -v grep | awk '{print $2}'`
 echo "Running: $running"
 start() {
-	echo "Starting autoscaler in screen session"
-        (cd $loc/src/themis && sudo -u $user screen -S autoscaler -d -m bash -c "PYTHONPATH=$loc/src ./main.py server_and_loop --port=$port --log=themis.log")
+    echo "Starting autoscaler in screen session"
+    (cd $loc && sudo -u $user screen -S autoscaler -d -m bash -c "make server")
 }
 stop() {
-        ps aux | grep server_and_loop | grep -v grep | awk '{print $2}' | xargs kill
+    ps aux | grep server_and_loop | grep -v grep | awk '{print $2}' | xargs kill
 }
 # See how we were called.
 RETVAL=0
 case "$1" in
     start)
-	[ "$running" == "" ] || exit 0
+    [ "$running" == "" ] || exit 0
         start
-	RETVAL=$?
+    RETVAL=$?
         ;;
     stop)
-	[ "$running" == "" ] && exit 0
+    [ "$running" == "" ] && exit 0
         stop
-	RETVAL=$?
+    RETVAL=$?
         ;;
     reload)
-	echo "Not implemented"
+    echo "Not implemented"
         ;;
     restart|force-reload)
         stop
-	start
-	RETVAL=$?
+    start
+    RETVAL=$?
         ;;
     condrestart|try-restart)
         [ "$running" == "" ] && exit 0
         stop
-	start
-	RETVAL=$?
+    start
+    RETVAL=$?
         ;;
     status)
-	echo "Not implemented"
+    echo "Not implemented"
         ;;
     *)
-      	echo $"Usage: $0 {start|stop|restart|condrestart|status}"
+          echo $"Usage: $0 {start|stop|restart|condrestart|status}"
         RETVAL=2
 esac
 exit $RETVAL

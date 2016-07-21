@@ -1,5 +1,5 @@
 import threading
-import subprocess
+import subprocess32 as subprocess
 import os
 import re
 import time
@@ -123,7 +123,7 @@ def inject_aws_endpoint(cmd):
 		pass
 	return cmd
 
-def run(cmd, cache_duration_secs=0, log_error=False, retries=0):
+def run(cmd, cache_duration_secs=0, log_error=False, retries=0, sleep=2, backoff=1.4):
 	def do_run(cmd):
 		try:
 			mutex_popen.acquire()
@@ -142,7 +142,8 @@ def run(cmd, cache_duration_secs=0, log_error=False, retries=0):
 				LOG.error("%s" % e.output)
 			if retries > 0:
 				LOG.info("INFO: Re-running command '%s'" % cmd)
-				return run(cmd, cache_duration_secs, log_error, retries - 1)
+				time.sleep(sleep)
+				return run(cmd, cache_duration_secs, log_error, retries - 1, sleep * backoff, backoff)
 			raise e
 	cmd = inject_aws_endpoint(cmd)
 	if cache_duration_secs <= 0:

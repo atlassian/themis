@@ -12,7 +12,6 @@ from themis.scaling import server
 from themis.constants import *
 from themis.util import common, monitoring, aws_common, aws_pricing
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
-from themis.util.common import log
 
 root_path = os.path.dirname(os.path.realpath(__file__))
 web_dir = root_path + '/../../../web/'
