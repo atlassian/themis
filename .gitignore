@@ -6,3 +6,4 @@ autoscaling.config.json*
 autoscaling.clusters.json*
 nosetests.xml
 /.coverage
+*.log

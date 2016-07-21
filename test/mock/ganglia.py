@@ -64,5 +64,4 @@ def mock_ganglia(cpu=None, mem=None):
 			mem_free_dp.append([mem_free,t])
 		t += 15
 
-	print(result)
 	return make_response(json.dumps(result))

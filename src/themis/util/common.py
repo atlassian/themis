@@ -8,13 +8,11 @@ import glob
 import json
 import math
 import uuid
+import logging
 import pyhive.presto
 from datetime import datetime, timedelta
 from collections import namedtuple
 
-def log(s):
-	# TODO add proper logging
-	print(s)
 
 CACHE_CLEAN_TIMEOUT = 60 * 5
 CACHE_MAX_AGE = 60 * 60
@@ -28,9 +26,16 @@ QUERY_CACHE_TIMEOUT = 60
 GANGLIA_CACHE_TIMEOUT = 60
 STATIC_INFO_CACHE_TIMEOUT = 60 * 30
 
+# cache globals
 last_cache_clean_time = 0
-
 mutex_clean = threading.Semaphore(1)
+
+def get_logger(name=None):
+	log = logging.getLogger(name)
+	return log
+
+# logger
+LOG = get_logger(__name__)
 
 def clean_cache():
 	global last_cache_clean_time
@@ -46,6 +51,17 @@ def clean_cache():
 		last_cache_clean_time = time_now
 	finally:
 		mutex_clean.release()
+
+def setup_logging(log_file=None, format = '%(asctime)s %(levelname)s: %(name)s: %(message)s'):
+	if log_file:
+		logging.basicConfig(filename=log_file, level=logging.INFO, format=format)
+	else:
+		logging.basicConfig(level=logging.INFO, format=format)
+	logging.getLogger('werkzeug').setLevel(logging.WARN)
+	formatter = logging.Formatter(format)
+	handler = logging.StreamHandler()
+	handler.setFormatter(formatter)
+	logging.getLogger().addHandler(handler)
 
 def now():
 	return time.mktime(datetime.now().timetuple())
@@ -106,13 +122,13 @@ def inject_aws_endpoint(cmd):
 		pass
 	return cmd
 
-def run(cmd, cache_duration_secs=0, print_error=False):
+def run(cmd, cache_duration_secs=0, log_error=False):
 	def do_run(cmd):
 		try:
 			return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 		except subprocess.CalledProcessError, e:
-			if print_error:
-				print("ERROR: %s" % e.output)
+			if log_error:
+				LOG.error("Error running command '%s': %s" % (cmd, e.output))
 			raise e
 	cmd = inject_aws_endpoint(cmd)
 	if cache_duration_secs <= 0:
