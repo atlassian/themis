@@ -14,7 +14,7 @@ running=`ps aux | grep server_and_loop | grep -v grep | awk '{print $2}'`
 echo "Running: $running"
 start() {
 	echo "Starting autoscaler in screen session"
-        (cd $loc/src/themis && sudo -u $user screen -S autoscaler -d -m bash -c "PYTHONPATH=$loc/src ./main.py server_and_loop -p $port")
+        (cd $loc/src/themis && sudo -u $user screen -S autoscaler -d -m bash -c "PYTHONPATH=$loc/src ./main.py server_and_loop --port=$port --log=themis.log")
 }
 stop() {
         ps aux | grep server_and_loop | grep -v grep | awk '{print $2}' | xargs kill

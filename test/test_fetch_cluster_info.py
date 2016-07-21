@@ -20,18 +20,16 @@ def test_list_instances():
 	server.config['group_id_task_spot'] = common.short_uid()
 	server.config['group_id_task_od'] = common.short_uid()
 
-	out = common.run("aws emr list-instances --cluster-id=testClusterID1", print_error=True)
-	#print out
+	out = common.run("aws emr list-instances --cluster-id=testClusterID1", log_error=True)
 	out = json.loads(out)
 	assert len(out['Instances']) > 0
 
 	nodes = aws_common.get_cluster_nodes('testClusterID1')
-	#print nodes
 	assert len(nodes) > 1
 
 def test_aws_cli():
 	init_mocks()
 
-	out = common.run("aws emr list-clusters", print_error=True)
+	out = common.run("aws emr list-clusters", log_error=True)
 	out = json.loads(out)
 	assert out['Clusters'][0]['Id'] == 'testClusterID1'

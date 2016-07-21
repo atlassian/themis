@@ -1,8 +1,11 @@
 import re
 import json
-from themis.util.common import log, run, remove_lines_from_string
+import logging
+from themis.util.common import run, remove_lines_from_string, get_logger
 from themis.util.common import CURL_CONNECT_TIMEOUT, STATIC_INFO_CACHE_TIMEOUT, QUERY_CACHE_TIMEOUT
 from themis.util.remote import run_ssh
+
+# constants
 
 PRESTO_STATE_SHUTTING_DOWN = 'SHUTTING_DOWN'
 PRESTO_STATE_ACTIVE = 'ACTIVE'
@@ -15,6 +18,10 @@ INSTANCE_STATE_TERMINATED = 'TERMINATED'
 INVALID_CONFIG_VALUE = '_invalid_value_to_avoid_restart_'
 
 CLUSTER_TYPE_PRESTO = "Presto"
+
+# logger
+LOG = get_logger(__name__)
+
 
 def ip_to_hostname(ip):
 	return 'ip-' + re.sub(r'\.', r'-', ip) + '.growth.internal.atlassian.com'
@@ -98,13 +105,13 @@ def get_all_task_nodes(cluster_id, cluster_ip):
 def terminate_task_node(instance_group_id, instance_id):
 	# terminate instance
 	cmd = 'aws emr modify-instance-groups --instance-groups InstanceGroupId=%s,EC2InstanceIdsToTerminate=%s' % (instance_group_id, instance_id)
-	log(cmd)
+	LOG.info(cmd)
 	run(cmd)
 
 def spawn_task_node(instance_group_id, current_size, additional_nodes=1):
 	# terminate instance
 	cmd = 'aws emr modify-instance-groups --instance-groups InstanceGroupId=%s,InstanceCount=%s' % (instance_group_id, current_size+additional_nodes)
-	log(cmd)
+	LOG.info(cmd)
 	run(cmd)
 
 def terminate_inactive_nodes(cluster_ip, nodes):
@@ -114,10 +121,10 @@ def terminate_inactive_nodes(cluster_ip, nodes):
 				cmd = "cat /etc/presto/conf/config.properties | grep http-server.threads"
 				out = run_ssh(cmd, cluster_ip, user='hadoop', via_hosts=[node['host']], cache_duration_secs=QUERY_CACHE_TIMEOUT)
 				if INVALID_CONFIG_VALUE in out:
-					log("Terminating instance of idle node %s in instance group %s" % (node['iid'],node['gid']))
+					LOG.info("Terminating instance of idle node %s in instance group %s" % (node['iid'],node['gid']))
 					terminate_task_node(node['gid'], node['iid'])
 			except Exception, e:
-				log("Unable to read Presto config from node %s: %s" % (node, e))
+				LOG.info("Unable to read Presto config from node %s: %s" % (node, e))
 
 def get_presto_node_state(cluster_ip, node_ip):
 	cmd = 'curl -s --connect-timeout %s http://%s:8889/v1/info/state' % (CURL_CONNECT_TIMEOUT, node_ip)
@@ -132,7 +139,7 @@ def set_presto_node_state(cluster_ip, node_ip, state):
 
 	cmd = ("curl -s --connect-timeout %s -X PUT -H 'Content-Type:application/json' " + \
 			"-d '\\\"%s\\\"' http://%s:8889/v1/info/state") % (CURL_CONNECT_TIMEOUT, state, node_ip)
-	log(cmd)
+	LOG.info(cmd)
 	out = run_ssh(cmd, cluster_ip, user='hadoop', cache_duration_secs=QUERY_CACHE_TIMEOUT)
 	out = re.sub(r'\s*"(.+)"\s*', r'\1', out)
 	return out

@@ -12,6 +12,8 @@ LOCATION_NAMES = {
 	'us-east-1': 'US East (N. Virginia)'
 }
 
+LOG = get_logger(__name__)
+
 def get_short_zone(zone):
 	zone = re.sub(r'-([1-9])[a-z]$', r'-\1', zone)
 	return zone
@@ -32,7 +34,7 @@ def get_spot_history(zone, type):
 		result = json.loads(result)
 	else:
 		cmd = "aws ec2 describe-spot-price-history --start-time %s --end-time %s --availability-zone %s --instance-types %s --max-items 15000" % (start_time, end_time, zone, type)
-		log('Loading AWS spot prices for zone "%s" and type "%s"' % (zone, type))
+		LOG.info('Loading AWS spot prices for zone "%s" and type "%s"' % (zone, type))
 		result = run(cmd)
 		open(file, 'w+').write(result)
 		result = json.loads(result)
@@ -48,7 +50,7 @@ def load_fixed_prices(zone):
 		result = open(file).read()
 		result = json.loads(result)
 	else:
-		log("Downloading latest pricing information from AWS")
+		LOG.info("Downloading latest pricing information from AWS")
 		cmd = "curl %s > %s" % (url, file)
 		run(cmd)
 		result = open(file).read()
@@ -74,7 +76,7 @@ def get_fixed_price(zone, type, os='Linux', tenancy='Shared'):
 							raise Exception("Multiple price dimensions found for %s" % key)
 						price = float(price_dim.values()[0]['pricePerUnit']['USD'])
 						if result:
-							log('WARNING: multiple prices detected %s %s' % (price, attrs['operatingSystem']))
+							LOG.info('WARNING: multiple prices detected %s %s' % (price, attrs['operatingSystem']))
 						else:
 							result = price
 	return result
@@ -178,7 +180,7 @@ def get_cluster_savings(info, baseline_nodes, zone='us-east-1'):
 				if not baseline_instance_type:
 					baseline_instance_type = instance_types[node]
 				if baseline_instance_type != instance_types[node]:
-					print("WARN: Found different node instance types. Using type '%s' as baseline" % baseline_instance_type)
+					LOG.warn("Found different node instance types. Using type '%s' as baseline" % baseline_instance_type)
 				if node not in instance_end_times or instance_end_times[node] < timestamp:
 					instance_end_times[node] = timestamp
 				if node not in instance_start_times or instance_start_times[node] > timestamp:

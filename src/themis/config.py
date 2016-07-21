@@ -1,7 +1,7 @@
 import os
 import json
 from themis.util import common
-from themis.util.common import run,log
+from themis.util.common import run
 from themis.constants import *
 
 # config file location
@@ -29,9 +29,12 @@ CLUSTER_LIST = common.load_json_file(CLUSTERS_FILE_LOCATION, [])
 # set this to override config for testing
 TEST_CONFIG = None
 
+# logger
+LOG = common.get_logger(__name__)
+
 def init_clusters_file():
 	if not os.path.isfile(CLUSTERS_FILE_LOCATION):
-		log("Initializing config file with list of clusters from AWS: %s" % CLUSTERS_FILE_LOCATION)
+		LOG.info("Initializing config file with list of clusters from AWS: %s" % CLUSTERS_FILE_LOCATION)
 		cfg = []
 
 		out = run('aws emr list-clusters')
@@ -56,7 +59,7 @@ def init_clusters_file():
 					if app['Name'] == 'Ganglia':
 						has_ganglia = True
 				if has_ganglia:
-					log('Getting details for cluster %s' % c['Id'])
+					LOG.info('Getting details for cluster %s' % c['Id'])
 					# get private IP address of cluster
 					for g in cluster_details['InstanceGroups']:
 						if g['InstanceGroupType'] == 'MASTER':
@@ -67,9 +70,9 @@ def init_clusters_file():
 									cluster['ip'] = inst['PrivateDnsName']
 					cfg.append(cluster)
 				else:
-					log('Ignoring cluster %s (Ganglia not installed)' % c['Id'])
+					LOG.info('Ignoring cluster %s (Ganglia not installed)' % c['Id'])
 		common.save_json_file(CLUSTERS_FILE_LOCATION, cfg)
-		log('Done.')
+		LOG.info('Done initializing.')
 
 def read():
 	appConfig = common.load_json_file(CONFIG_FILE_LOCATION)

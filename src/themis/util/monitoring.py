@@ -13,6 +13,8 @@ from themis.util import aws_common, common, expr
 from themis.util.common import *
 from themis.util.remote import run_ssh
 
+# logger
+LOG = get_logger(__name__)
 
 # global DB connection
 db_connection = None
@@ -126,7 +128,7 @@ def get_cluster_load(cluster_info, task_nodes=None, monitoring_interval_secs=MON
 				load = get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs)
 				result[host] = load
 			except Exception, e:
-				log("WARN: Unable to get load for node %s: %s" % (host, e))
+				LOG.warning("Unable to get load for node %s: %s" % (host, e))
 				result[host] = {}
 
 	parallelize(nodes, query)
@@ -358,7 +360,8 @@ def get_minimum_nodes(date):
 			if nodes_to_return is None:
 				nodes_to_return = num_nodes
 			else:
-				print "WARNING! '%s' Regex Pattern has matched more then once:\nnodes_to_return=%d is now changing to nodes_to_return=%d" % (pattern,nodes_to_return,num_nodes)
+				LOG.warning("'%s' Regex Pattern has matched more than once:\nnodes_to_return=%d is now changing to nodes_to_return=%d" %
+					(pattern,nodes_to_return,num_nodes))
 				nodes_to_return = num_nodes
 	## no match revert to default
 	if nodes_to_return is None:

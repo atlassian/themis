@@ -22,6 +22,6 @@ lint:
 	pylint --rcfile=.pylintrc src/
 
 server:
-	eval `ssh-agent -s` && PYTHONPATH=$(dir)/src src/themis/main.py server_and_loop -p 8081
+	eval `ssh-agent -s` && PYTHONPATH=$(dir)/src src/themis/main.py server_and_loop --port=8081 --log=themis.log
 
 .PHONY: build test

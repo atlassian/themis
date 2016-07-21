@@ -11,14 +11,18 @@ from themis import config
 from themis.constants import *
 from themis.util import common, monitoring, aws_common, aws_pricing
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
-from themis.util.common import log
 
 root_path = os.path.dirname(os.path.realpath(__file__))
 web_dir = root_path + '/../../../web/'
 
+# flask web app
 app = Flask('app', template_folder=web_dir)
 app.root_path = root_path
 
+# logger
+LOG = common.get_logger(__name__)
+
+# map of configured clusters
 CLUSTERS = {}
 for val in config.CLUSTER_LIST:
 	CLUSTERS[val['id']] = val
@@ -167,7 +171,7 @@ def get_termination_candidates(info, ignore_preferred=False, config=None):
 def get_nodes_to_terminate(info, config=None):
 	expr = themis.config.get_value(KEY_DOWNSCALE_EXPR, config)
 	num_downsize = monitoring.execute_dsl_string(expr, info, config)
-	print("num_downsize: %s" % num_downsize)
+	LOG.info("num_downsize: %s" % num_downsize)
 	if not isinstance(num_downsize, int) or num_downsize <= 0:
 		return []
 
@@ -197,17 +201,17 @@ def get_nodes_to_add(info, config=None):
 	expr = themis.config.get_value(KEY_UPSCALE_EXPR, config)
 	num_upsize = monitoring.execute_dsl_string(expr, info, config)
 	num_upsize = int(float(num_upsize))
-	print("num_upsize: %s" % num_upsize)
+	LOG.info("num_upsize: %s" % num_upsize)
 	if num_upsize > 0:
 		return ['TODO' for i in range(0,num_upsize)]
 	return []
 
 def terminate_node(cluster_ip, node_ip, tasknodes_group):
-	print("Sending shutdown signal to task node with IP '%s'" % node_ip)
+	LOG.info("Sending shutdown signal to task node with IP '%s'" % node_ip)
 	aws_common.set_presto_node_state(cluster_ip, node_ip, aws_common.PRESTO_STATE_SHUTTING_DOWN)
 
 def spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, nodes_to_add=1):
-	print("Adding new task node to cluster '%s'" % cluster_ip)
+	LOG.info("Adding new task node to cluster '%s'" % cluster_ip)
 	aws_common.spawn_task_node(tasknodes_group, current_num_nodes, nodes_to_add)
 
 def select_tasknode_group(tasknodes_groups):
@@ -223,7 +227,7 @@ def select_tasknode_group(tasknodes_groups):
 
 
 def tick():
-	print("Running next loop iteration")
+	LOG.info("Running next loop iteration")
 	monitoring_interval_secs = int(config.get_value(KEY_MONITORING_INTERVAL_SECS))
 	for cluster_id, details in CLUSTERS.iteritems():
 		cluster_ip = details['ip']
@@ -231,7 +235,7 @@ def tick():
 		try:
 			info = monitoring.collect_info(details, monitoring_interval_secs=monitoring_interval_secs)
 		except Exception, e:
-			log("WARNING: Error getting monitoring info for cluster %s: %s" % (cluster_id, e))
+			LOG.warning("Error getting monitoring info for cluster %s: %s" % (cluster_id, e))
 		if info:
 			action = 'N/A'
 			# Make sure we are only resizing Presto clusters atm
@@ -255,7 +259,7 @@ def tick():
 							else:
 								action = 'NOTHING'
 					except Exception, e:
-						log("WARNING: Error downscaling/upscaling cluster %s: %s" % (cluster_id, e))
+						LOG.warning("Error downscaling/upscaling cluster %s: %s" % (cluster_id, e))
 					# clean up and terminate instances whose nodes are already in inactive state
 					aws_common.terminate_inactive_nodes(cluster_ip, info['nodes'])
 			# store the state for future reference
@@ -267,8 +271,7 @@ def loop():
 		try:
 			tick()
 		except Exception, e:
-			print("WARN: Exception in main loop: %s" % (e))
-			traceback.print_exc()
+			LOG.warning("Exception in main loop: %s" % (traceback.format_exc(e)))
 		time.sleep(int(config.get_value(KEY_LOOP_INTERVAL_SECS)))
 
 def serve(port):

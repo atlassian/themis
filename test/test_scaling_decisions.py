@@ -26,7 +26,6 @@ def mock_cluster_state(nodes=0, config=None):
 		'type': aws_common.CLUSTER_TYPE_PRESTO
 	}
 	info = monitoring.collect_info(cluster_info, config=config, task_nodes=task_nodes)
-	print(info)
 	return info
 
 def get_server():
