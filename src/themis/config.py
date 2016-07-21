@@ -43,8 +43,9 @@ LOG = common.get_logger(__name__)
 
 def init_clusters_file():
 	cfg = []
-	mutex = threading.Semaphore(1)
-	run_parallel = True
+	# Don't run this in parallel for now. There seems to be an issue with
+	# the AWS CLI or API if we run multiple "aws ..." commands in parallel
+	run_parallel = False
 
 	def init_cluster_config(c):
 		if c['Status']['State'][0:10] != 'TERMINATED':

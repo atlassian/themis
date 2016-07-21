@@ -1,5 +1,5 @@
 import threading
-import subprocess
+import subprocess32 as subprocess
 import os
 import re
 import time

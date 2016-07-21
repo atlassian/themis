@@ -10,3 +10,4 @@ pyhive==0.1.6
 pylint==1.5.5
 requests==2.10.0
 scipy==0.17.0
+subprocess32==3.2.7
