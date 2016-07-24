@@ -24,9 +24,14 @@ However, while autoscaling has become state-of-the-art for applications in Amazo
 currently there exists no out-of-the-box solution for autoscaling analytics clusters on EMR.
 
 The "Themis" autoscaling tool actively monitors the performance of a user's EMR clusters and automatically scales the
-cluster up and down where appropriate. A Web user interface (UI) is available to display the key data. Themis supports
-both, reactive and proactive autoscaling. The rules for autoscaling can be customized in a configuration file or via
-the Web UI.
+cluster up and down where appropriate. Themis supports
+two modes:
+* **Reactive autoscaling**: Add and remove nodes based on the current load of the cluster
+* **Proactive autoscaling**: Define minimum number of nodes based on a schedule (e.g., 10 nodes during working hours)
+
+A Web user interface (UI) is available to display the key data. The rules for autoscaling can be customized in a configuration file or via the Web UI.
+
+![Autoscaling Example](https://raw.githubusercontent.com/atlassian/themis/master/web/img/scaling.png)
 
 ## Requirements
 
@@ -43,11 +48,10 @@ To install the tool, run the following command:
 make build
 ```
 
-This will install the required pip dependencies in your local system (e.g., in 
-`/usr/local/lib/python2.7/site-packages/`), as well as the node modules for the
-Web UI in `./web/node_modules/`. Depending in your system, some pip/npm modules may require
-additional native libs installed. Under Redhat/CentOS or Amazon Linux, you may first need to
-run the following command:
+This will install the required pip dependencies in a local Python virtualenv directory 
+(.venv), as well as the node modules for the Web UI in `./web/node_modules/`. 
+Depending in your system, some pip/npm modules may require additional native libs installed.
+Under Redhat/CentOS or Amazon Linux, you may first need to run the following command:
 
 ```
 sudo yum -y install blas-devel lapack-devel numpy-f2py
