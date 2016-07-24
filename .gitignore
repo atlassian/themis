@@ -7,3 +7,4 @@ autoscaling.clusters.json*
 nosetests.xml
 /.coverage
 *.log
+.venv/
