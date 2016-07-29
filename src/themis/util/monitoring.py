@@ -244,8 +244,8 @@ def collect_info(cluster_info, task_nodes=None, config=None,
     cluster_ip = cluster_info['ip']
     result = {}
     result['time_based'] = {}
-    result['time_based']['enabled'] = len(json.loads(themis.config.get_value(
-        constants.KEY_TIME_BASED_SCALING, config=config, default="{}", section=cluster_id))) > 1
+    time_based_config = get_time_based_scaling_config(cluster_id, config=config)
+    result['time_based']['enabled'] = len(time_based_config) > 0
     result['time_based']['minimum'] = {}
     result['nodes'] = {}
     result['cluster_id'] = cluster_id
@@ -361,17 +361,27 @@ def history_get(cluster, limit=100):
     return result
 
 
+def get_time_based_scaling_config(cluster_id, config=None):
+    result = themis.config.get_value(constants.KEY_TIME_BASED_SCALING,
+        config=config, default='{}', section=cluster_id)
+    try:
+        return json.loads(result)
+    except Exception, e:
+        return {}
+
+
 # returns nodes if based on regex dict values
 # assumes no overlapping entries as will grab the first item it matches.
 def get_minimum_nodes(date, cluster_id):
     now_str = date.strftime("%a %Y-%m-%d %H:%M:%S")
 
-    # this is only used for testing:
+    # This is only used for testing, to overwrite the config. If TEST_CONFIG is
+    # None (which is the default), then the actual configuration will be used.
     config = themis.config.TEST_CONFIG
-    dict = json.loads(themis.config.get_value(constants.KEY_TIME_BASED_SCALING,
-        config=config, default=None, section=cluster_id))
+
+    pattern_to_nodes = get_time_based_scaling_config(cluster_id=cluster_id, config=config)
     nodes_to_return = None
-    for pattern, num_nodes in dict.iteritems():
+    for pattern, num_nodes in pattern_to_nodes.iteritems():
         if re.match(pattern, now_str):
             if nodes_to_return is None:
                 nodes_to_return = num_nodes

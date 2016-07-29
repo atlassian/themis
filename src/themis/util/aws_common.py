@@ -84,7 +84,8 @@ def get_instance_group_for_node(cluster_id, node_host):
 
 
 def get_cluster_nodes(cluster_id):
-    cmd = 'aws emr list-instances --cluster-id=%s' % cluster_id
+    cmd = ('aws emr list-instances --cluster-id=%s --instance-states ' +
+        'AWAITING_FULFILLMENT PROVISIONING BOOTSTRAPPING RUNNING') % cluster_id
     result = run(cmd, cache_duration_secs=QUERY_CACHE_TIMEOUT, retries=1)
     result = json.loads(result)
     result = result['Instances']
@@ -128,7 +129,15 @@ def spawn_task_node(instance_group_id, current_size, additional_nodes=1):
     run(cmd)
 
 
-def terminate_inactive_nodes(cluster_ip, nodes):
+def is_presto_cluster(cluster):
+    return cluster['type'] == 'Presto'
+
+
+def terminate_inactive_nodes(cluster, cluster_state):
+    if not is_presto_cluster(cluster):
+        return
+    cluster_ip = cluster['ip']
+    nodes = cluster_state['nodes']
     for key, node in nodes.iteritems():
         if (node['state'] == INSTANCE_STATE_RUNNING and node['presto_state'] not in
                 [PRESTO_STATE_SHUTTING_DOWN, PRESTO_STATE_ACTIVE]):
@@ -139,7 +148,7 @@ def terminate_inactive_nodes(cluster_ip, nodes):
                 if INVALID_CONFIG_VALUE in out:
                     LOG.info("Terminating instance of idle node %s in instance group %s" %
                         (node['iid'], node['gid']))
-                    terminate_task_node(node['gid'], node['iid'])
+                    terminate_task_node(instance_group_id=node['gid'], instance_id=node['iid'])
             except Exception, e:
                 LOG.info("Unable to read Presto config from node %s: %s" % (node, e))
 

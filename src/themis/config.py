@@ -87,7 +87,8 @@ def init_clusters_file():
                 # get private IP address of cluster
                 for g in cluster_details['InstanceGroups']:
                     if g['InstanceGroupType'] == 'MASTER':
-                        cmd = 'aws emr list-instances --cluster-id=%s' % c['Id']
+                        cmd = ('aws emr list-instances --cluster-id=%s --instance-states ' +
+                            'AWAITING_FULFILLMENT PROVISIONING BOOTSTRAPPING RUNNING') % c['Id']
                         out2 = run(cmd, retries=6)
                         if not out2:
                             LOG.warning("No output for command '%s'" % cmd)

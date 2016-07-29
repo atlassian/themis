@@ -131,7 +131,7 @@ def get_costs():
     data = json.loads(request.data)
     cluster_id = data['cluster_id']
     num_datapoints = data['num_datapoints'] if 'num_datapoints' in data else 300
-    baseline_nodes = data['baseline_nodes'] if 'baseline_nodes' in data else 15
+    baseline_nodes = data['baseline_nodes'] if 'baseline_nodes' in data else 20
     info = monitoring.history_get(cluster_id, num_datapoints)
     common.remove_NaN(info)
     result = aws_pricing.get_cluster_savings(info, baseline_nodes)

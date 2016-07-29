@@ -52,7 +52,7 @@ def get_nodes_to_terminate(info, config=None):
     cluster_id = info['cluster_id']
     expr = themis.config.get_value(KEY_DOWNSCALE_EXPR, config=config, section=cluster_id)
     num_downsize = monitoring.execute_dsl_string(expr, info, config)
-    LOG.info("num_downsize: %s" % num_downsize)
+    LOG.info("Cluster %s: num_downsize: %s" % (cluster_id, num_downsize))
     if not isinstance(num_downsize, int) or num_downsize <= 0:
         return []
 
@@ -84,15 +84,23 @@ def get_nodes_to_add(info, config=None):
     expr = themis.config.get_value(KEY_UPSCALE_EXPR, config, section=cluster_id)
     num_upsize = monitoring.execute_dsl_string(expr, info, config)
     num_upsize = int(float(num_upsize))
-    LOG.info("num_upsize: %s" % num_upsize)
+    LOG.info("Cluster %s: num_upsize: %s" % (cluster_id, num_upsize))
     if num_upsize > 0:
         return ['TODO' for i in range(0, num_upsize)]
     return []
 
 
-def terminate_node(cluster_ip, node_ip, tasknodes_group):
-    LOG.info("Sending shutdown signal to task node with IP '%s'" % node_ip)
-    aws_common.set_presto_node_state(cluster_ip, node_ip, aws_common.PRESTO_STATE_SHUTTING_DOWN)
+def terminate_node(cluster, node):
+    cluster_ip = cluster['ip']
+    node_ip = node['ip']
+    instance_id = node['iid']
+    tasknodes_group = node['gid']
+    if aws_common.is_presto_cluster(cluster):
+        LOG.info("Sending shutdown signal to Presto task node with IP '%s'" % node_ip)
+        aws_common.set_presto_node_state(cluster_ip, node_ip, aws_common.PRESTO_STATE_SHUTTING_DOWN)
+    else:
+        LOG.info("Terminating task node with instance ID '%s' in group '%s'" % (instance_id, tasknodes_group))
+        aws_common.terminate_task_node(instance_group_id=tasknodes_group, instance_id=instance_id)
 
 
 def spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, nodes_to_add=1):
@@ -105,7 +113,7 @@ def select_tasknode_group(tasknodes_groups, cluster_id):
         raise Exception("Empty list of task node instance groups for scaling: %s" % tasknodes_groups)
     if len(tasknodes_groups) == 1:
         return tasknodes_groups[0]
-    preferred = config.get_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, cluster_id)
+    preferred = config.get_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, section=cluster_id)
     for group in tasknodes_groups:
         if group['market'] == preferred:
             return group
@@ -116,41 +124,39 @@ def select_tasknode_group(tasknodes_groups, cluster_id):
 def tick():
     LOG.info("Running next loop iteration")
     monitoring_interval_secs = int(config.get_value(KEY_MONITORING_INTERVAL_SECS))
-    for cluster_id, details in CLUSTERS.iteritems():
-        cluster_ip = details['ip']
+    for cluster_id, cluster_details in CLUSTERS.iteritems():
+        cluster_ip = cluster_details['ip']
         info = None
         try:
-            info = monitoring.collect_info(details, monitoring_interval_secs=monitoring_interval_secs)
+            info = monitoring.collect_info(cluster_details, monitoring_interval_secs=monitoring_interval_secs)
         except Exception, e:
             LOG.warning("Error getting monitoring info for cluster %s: %s" % (cluster_id, e))
         if info:
             action = 'N/A'
-            # Make sure we are only resizing Presto clusters atm
-            if details['type'] == 'Presto':
-                # Make sure we don't change clusters that are not configured
-                if cluster_id in get_autoscaling_clusters():
-                    try:
-                        nodes_to_terminate = get_nodes_to_terminate(info)
-                        if len(nodes_to_terminate) > 0:
-                            for node in nodes_to_terminate:
-                                terminate_node(cluster_ip, node['ip'], node['gid'])
-                            action = 'DOWNSCALE(-%s)' % len(nodes_to_terminate)
+            # Make sure we don't change clusters that are not configured
+            if cluster_id in get_autoscaling_clusters():
+                try:
+                    nodes_to_terminate = get_nodes_to_terminate(info)
+                    if len(nodes_to_terminate) > 0:
+                        for node in nodes_to_terminate:
+                            terminate_node(cluster_details, node)
+                        action = 'DOWNSCALE(-%s)' % len(nodes_to_terminate)
+                    else:
+                        nodes_to_add = get_nodes_to_add(info)
+                        if len(nodes_to_add) > 0:
+                            tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster_id)
+                            tasknodes_group = select_tasknode_group(tasknodes_groups, cluster_id)['id']
+                            current_num_nodes = len([n for key, n in info['nodes'].iteritems()
+                                if n['gid'] == tasknodes_group])
+                            spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, len(nodes_to_add))
+                            action = 'UPSCALE(+%s)' % len(nodes_to_add)
                         else:
-                            nodes_to_add = get_nodes_to_add(info)
-                            if len(nodes_to_add) > 0:
-                                tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster_id)
-                                tasknodes_group = select_tasknode_group(tasknodes_groups, cluster_id)['id']
-                                current_num_nodes = len([n for key, n in info['nodes'].iteritems()
-                                    if n['gid'] == tasknodes_group])
-                                spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, len(nodes_to_add))
-                                action = 'UPSCALE(+%s)' % len(nodes_to_add)
-                            else:
-                                action = 'NOTHING'
-                    except Exception, e:
-                        LOG.warning("WARNING: Error downscaling/upscaling cluster %s: %s" %
-                            (cluster_id, traceback.format_exc(e)))
-                    # clean up and terminate instances whose nodes are already in inactive state
-                    aws_common.terminate_inactive_nodes(cluster_ip, info['nodes'])
+                            action = 'NOTHING'
+                except Exception, e:
+                    LOG.warning("WARNING: Error downscaling/upscaling cluster %s: %s" %
+                        (cluster_id, traceback.format_exc(e)))
+                # clean up and terminate instances whose nodes are already in inactive state
+                aws_common.terminate_inactive_nodes(cluster_details, info)
             # store the state for future reference
             monitoring.history_add(cluster_id, info, action)
 

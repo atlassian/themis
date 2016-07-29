@@ -14,7 +14,7 @@
     $scope.settings = {};
     $scope.active_tab = 1;
     $scope.clusterId = $stateParams.clusterId;
-    $scope.baseline_nodes = 15;
+    $scope.baseline_nodes = 20;
     var timer = null;
 
     if($stateParams.tab) {
