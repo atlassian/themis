@@ -27,7 +27,7 @@ The "Themis" autoscaling tool actively monitors the performance of a user's EMR 
 cluster up and down where appropriate. Themis supports
 two modes:
 * **Reactive autoscaling**: Add and remove nodes based on the current load of the cluster
-* **Proactive autoscaling**: Define minimum number of nodes based on a schedule (e.g., 10 nodes during working hours)
+* **Proactive autoscaling**: Define minimum number of nodes based on a schedule (e.g., 10+ nodes during working hours, but only 2 nodes over night)
 
 A Web user interface (UI) is available to display the key data. The rules for autoscaling can be customized in a configuration file or via the Web UI.
 
