@@ -29,7 +29,22 @@ def get_autoscaling_clusters():
     return re.split(r'\s*,\s*', config.get_value(KEY_AUTOSCALING_CLUSTERS))
 
 
-def get_termination_candidates(info, ignore_preferred=False, config=None):
+def get_termination_candidates(info, config=None):
+    result = []
+    cluster_id = info['cluster_id']
+    preferred = themis.config.get_value(KEY_PREFERRED_INSTANCE_MARKET, config, section=cluster_id, default='')
+    if not preferred:
+        preferred = [MARKET_SPOT, MARKET_ON_DEMAND]
+    else:
+        preferred = re.split("\s*,\s*", preferred)
+    for market in preferred:
+        if market:
+            cand = get_termination_candidates_for_market(info, market=market)
+            result.extend(cand)
+    return result
+
+
+def get_termination_candidates_for_market(info, market):
     candidates = []
     cluster_id = info['cluster_id']
     for key, details in info['nodes'].iteritems():
@@ -38,13 +53,9 @@ def get_termination_candidates(info, ignore_preferred=False, config=None):
                 details['queries'] = 0
             # terminate only nodes with 0 queries running
             if details['queries'] == 0:
-                preferred = themis.config.get_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, config, section=cluster_id)
-                if ignore_preferred or not preferred:
+                group_details = aws_common.get_instance_group_details(cluster_id, details['gid'])
+                if group_details['Market'] == market:
                     candidates.append(details)
-                else:
-                    group_details = aws_common.get_instance_group_details(cluster_id, details['gid'])
-                    if group_details['market'] == preferred:
-                        candidates.append(details)
     return candidates
 
 
@@ -57,10 +68,6 @@ def get_nodes_to_terminate(info, config=None):
         return []
 
     candidates = get_termination_candidates(info, config=config)
-
-    if len(candidates) <= 0:
-        candidates = get_termination_candidates(info, ignore_preferred=True, config=config)
-
     candidates = sort_nodes_by_load(candidates, desc=False)
 
     result = []
@@ -113,9 +120,9 @@ def select_tasknode_group(tasknodes_groups, cluster_id):
         raise Exception("Empty list of task node instance groups for scaling: %s" % tasknodes_groups)
     if len(tasknodes_groups) == 1:
         return tasknodes_groups[0]
-    preferred = config.get_value(KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, section=cluster_id)
+    preferred = config.get_value(KEY_PREFERRED_INSTANCE_MARKET, section=cluster_id)
     for group in tasknodes_groups:
-        if group['market'] == preferred:
+        if group['Market'] == preferred:
             return group
     raise Exception("Could not select task node instance group for preferred market '%s': %s" %
             (preferred, tasknodes_groups))

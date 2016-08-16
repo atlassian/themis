@@ -262,6 +262,7 @@ def collect_info(cluster_info, task_nodes=None, config=None,
         result['nodes'][host]['iid'] = node['iid']
         result['nodes'][host]['gid'] = node['gid']
         result['nodes'][host]['queries'] = 0
+        result['nodes'][host]['market'] = node['market']
     try:
         queries = get_node_queries(cluster_ip)
         for host in queries:

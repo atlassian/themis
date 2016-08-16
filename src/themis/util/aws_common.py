@@ -48,8 +48,8 @@ def get_instance_groups(cluster_id):
             result_map[group_type] = []
         group['id'] = group['Id']
         group['type'] = group_type
-        group['market'] = group['Market']
         result_map[group_type].append(group)
+
     return result_map
 
 
@@ -103,6 +103,7 @@ def get_cluster_nodes(cluster_id):
             inst['host'] = inst['PrivateDnsName'] if 'PrivateDnsName' in inst else 'n/a'
             inst['type'] = get_instance_group_type(cluster_id, inst['InstanceGroupId'])
             inst['state'] = inst['Status']['State']
+            inst['market'] = get_instance_group_details(cluster_id, inst['InstanceGroupId'])['Market']
         i += 1
     return result
 

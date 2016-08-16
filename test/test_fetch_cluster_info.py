@@ -19,8 +19,8 @@ def init_mocks():
 
 def test_list_instances():
     init_mocks()
-    server.config['group_id_task_spot'] = common.short_uid()
-    server.config['group_id_task_od'] = common.short_uid()
+    server.config['group_id_task_spot'] = 'group_task_spot'
+    server.config['group_id_task_od'] = 'group_task_od'
 
     out = common.run("aws emr list-instances --cluster-id=testClusterID1", log_error=True)
     out = json.loads(out)

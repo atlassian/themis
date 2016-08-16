@@ -45,6 +45,7 @@
                 <tr>
                   <th ts-criteria="type" id="host_name">Host</th>
                   <th ts-criteria="host" id="node_type">Type</th>
+                  <th ts-criteria="market" id="market_type">Market</th>
                   <th ts-criteria="iid" id="inst_id">Instance ID</th>
                   <th ts-criteria="state" id="node_state">State (EC2)</th>
                   <th ts-criteria="state_presto" id="node_state_presto" ng-show="state.data.is_presto">State (Presto)</th>
@@ -58,6 +59,7 @@
                 <tr ng-repeat="value in state.data.nodes_list track by value.host" ts-repeat>
                   <td headers="host_name">{{value.host}}</td>
                   <td headers="node_type">{{value.type}}</td>
+                  <td headers="market_type">{{value.market}}</td>
                   <td headers="inst_id">{{value.iid}}</td>
                   <td headers="node_state">{{value.state}}</td>
                   <td headers="state_presto" ng-show="state.data.is_presto">{{value.presto_state}}</td>

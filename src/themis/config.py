@@ -41,9 +41,9 @@ DEFAULT_APP_CONFIG = {
             DESC: """A JSON string that maps date regular expressions to minimum number of nodes. \
             Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". \
             Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.:.*": 1}'}""".replace('    ', '')},
-        {KEY: KEY_PREFERRED_UPSCALE_INSTANCE_MARKET, VAL: MARKET_SPOT,
-            DESC: """Whether to prefer increasing the pool of SPOT instances or \
-                    ON_DEMAND instances (if both exist in the cluster)""".replace('    ', '')}
+        {KEY: KEY_PREFERRED_INSTANCE_MARKET, VAL: MARKET_SPOT,
+            DESC: """Comma separated list of instance markets to increase/decrease depending on order \
+                    e.g SPOT,ON_DEMAND = increase/decrease with SPOT and if necessary ON_DEMAND""".replace('    ', '')}
     ]
 }
 

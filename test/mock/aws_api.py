@@ -8,6 +8,9 @@ import threading
 from themis.util import common
 from constants import *
 
+num_spot_nodes = 5
+num_od_nodes = 2
+
 
 def serve(port, daemon=True):
     class AwsApiApp(threading.Thread):
@@ -63,13 +66,11 @@ def mock_aws_api(method, path, req, config={}):
         result = {
             "Instances": []
         }
-        num_spot = 5
-        num_od = 2
-        for i in range(0, num_spot + num_od):
+        for i in range(0, num_spot_nodes + num_od_nodes):
             gid = common.short_uid()
-            if i < num_spot and 'group_id_task_spot' in config:
+            if i < num_spot_nodes and 'group_id_task_spot' in config:
                 gid = config['group_id_task_spot']
-            if i >= num_spot and 'group_id_task_od' in config:
+            if i >= num_spot_nodes and 'group_id_task_od' in config:
                 gid = config['group_id_task_od']
             inst = {
                 "Status": {
@@ -112,6 +113,7 @@ def mock_aws_api(method, path, req, config={}):
         }
         for t in ['master', 'core', 'task_od', 'task_spot']:
             key = 'group_id_%s' % t
+            group_id = "%s" % (config[key] if key in config else 'group_%s' % t)
             g = {
                 "RequestedInstanceCount": 1,
                 "Status": {
@@ -119,7 +121,7 @@ def mock_aws_api(method, path, req, config={}):
                 },
                 "Name": t,
                 "InstanceGroupType": t.split('_')[0].upper(),
-                "Id": "%s" % (config[key] if key in config else common.short_uid()),
+                "Id": group_id,
                 "InstanceType": "c3.xlarge",
                 "Market": ("SPOT" if t == 'task_spot' else "ON_DEMAND")
             }
