@@ -56,6 +56,7 @@
     var loadCostsData = function(data) {
       $scope.$apply(function() {
         $scope.savings = data.results;
+        $scope.baseline_nodes = data.baseline_nodes;
         if(!$scope.savings.saved) {
           $scope.savings.saved = 'n/a';
         } else {
@@ -91,8 +92,8 @@
         /* load savings */
         $scope.savings.saved = 'n/a';
         client.default.getCosts({request: {
-              cluster_id: $scope.clusterId,
-              baseline_nodes: $scope.baseline_nodes}
+            cluster_id: $scope.clusterId
+          }
         }).then(function(obj) {
           $scope.savings.loading = false;
           loadCostsData(obj.obj);

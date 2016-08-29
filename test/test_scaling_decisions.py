@@ -34,7 +34,7 @@ def mock_cluster_state(spot_nodes=0, od_nodes=0, config=None):
         'ip_public': 'localhost:%s' % GANGLIA_PORT,
         'type': aws_common.CLUSTER_TYPE_PRESTO
     }
-    info = monitoring.collect_info(cluster_info, config=config, task_nodes=task_nodes)
+    info = monitoring.collect_info(cluster_info, config=config, nodes=task_nodes)
     return info
 
 
