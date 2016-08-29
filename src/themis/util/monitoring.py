@@ -109,13 +109,12 @@ def get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITOR
     return result
 
 
-def get_cluster_load(cluster_info, task_nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+def get_cluster_load(cluster_info, nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     cluster_id = cluster_info['id']
     cluster_ip = cluster_info['ip']
     result = {}
-    nodes = task_nodes
     if not nodes:
-        nodes = aws_common.get_all_task_nodes(cluster_id, cluster_ip)
+        nodes = get_cluster_nodes(cluster_id)
 
     def query(node):
         cluster_ip = cluster_info['ip']
@@ -234,11 +233,17 @@ def add_stats(data):
         do_add_stats(data['nodes_list'], data['allnodes'])
 
         data['tasknodes'] = {}
+        data['corenodes'] = {}
+        data['masternodes'] = {}
         task_nodes = [n for n in data['nodes_list'] if n['type'] == aws_common.INSTANCE_GROUP_TYPE_TASK]
         do_add_stats(task_nodes, data['tasknodes'])
+        master_nodes = [n for n in data['nodes_list'] if n['type'] == aws_common.INSTANCE_GROUP_TYPE_MASTER]
+        do_add_stats(master_nodes, data['masternodes'])
+        core_nodes = [n for n in data['nodes_list'] if n['type'] == aws_common.INSTANCE_GROUP_TYPE_CORE]
+        do_add_stats(core_nodes, data['corenodes'])
 
 
-def collect_info(cluster_info, task_nodes=None, config=None,
+def collect_info(cluster_info, nodes=None, config=None,
         monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     cluster_id = cluster_info['id']
     cluster_ip = cluster_info['ip']
@@ -250,10 +255,10 @@ def collect_info(cluster_info, task_nodes=None, config=None,
     result['nodes'] = {}
     result['cluster_id'] = cluster_id
     result['is_presto'] = cluster_info['type'] == aws_common.CLUSTER_TYPE_PRESTO
-    task_nodes_list = task_nodes
-    if not task_nodes_list:
-        task_nodes_list = aws_common.get_cluster_nodes(cluster_id)
-    for node in task_nodes_list:
+    nodes_list = nodes
+    if not nodes_list:
+        nodes_list = aws_common.get_cluster_nodes(cluster_id)
+    for node in nodes_list:
         host = node['host']
         result['nodes'][host] = {}
         result['nodes'][host]['type'] = node['type']
@@ -278,8 +283,8 @@ def collect_info(cluster_info, task_nodes=None, config=None,
         entry = result['nodes'][host]
         entry['host'] = host
         result['nodes_list'].append(entry)
-    node_infos = get_cluster_load(cluster_info, task_nodes=task_nodes,
-                                  monitoring_interval_secs=monitoring_interval_secs)
+    node_infos = get_cluster_load(cluster_info, nodes=nodes,
+        monitoring_interval_secs=monitoring_interval_secs)
     for host in node_infos:
         result['nodes'][host]['load'] = node_infos[host]
         if 'presto_state' in result['nodes'][host]:
