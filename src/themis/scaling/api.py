@@ -131,11 +131,13 @@ def get_costs():
     data = json.loads(request.data)
     cluster_id = data['cluster_id']
     num_datapoints = data['num_datapoints'] if 'num_datapoints' in data else 300
-    baseline_nodes = data['baseline_nodes'] if 'baseline_nodes' in data else 20
+    baseline_nodes = (data['baseline_nodes'] if 'baseline_nodes' in data else
+        config.get_value(KEY_BASELINE_COMPARISON_NODES, section=cluster_id, default=20))
+    baseline_nodes = int(baseline_nodes)
     info = monitoring.history_get(cluster_id, num_datapoints)
     common.remove_NaN(info)
     result = aws_pricing.get_cluster_savings(info, baseline_nodes)
-    return jsonify(results=result)
+    return jsonify(results=result, baseline_nodes=baseline_nodes)
 
 
 @app.route('/')

@@ -42,8 +42,10 @@ DEFAULT_APP_CONFIG = {
             Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". \
             Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.:.*": 1}'}""".replace('    ', '')},
         {KEY: KEY_PREFERRED_INSTANCE_MARKET, VAL: MARKET_SPOT,
-            DESC: """Comma separated list of instance markets to increase/decrease depending on order \
-                    e.g SPOT,ON_DEMAND = increase/decrease with SPOT and if necessary ON_DEMAND""".replace('    ', '')}
+            DESC: """Comma separated list of instance markets to increase/decrease depending on order, \
+                e.g., SPOT,ON_DEMAND = increase/decrease with SPOT and if necessary ON_DEMAND""".replace('    ', '')},
+        {KEY: KEY_BASELINE_COMPARISON_NODES, VAL: '20',
+            DESC: """Number of baseline nodes to use for comparing costs and calculating savings""".replace('    ', '')}
     ]
 }
 

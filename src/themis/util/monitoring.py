@@ -114,7 +114,7 @@ def get_cluster_load(cluster_info, nodes=None, monitoring_interval_secs=MONITORI
     cluster_ip = cluster_info['ip']
     result = {}
     if not nodes:
-        nodes = get_cluster_nodes(cluster_id)
+        nodes = aws_common.get_cluster_nodes(cluster_id)
 
     def query(node):
         cluster_ip = cluster_info['ip']

@@ -8,6 +8,7 @@ KEY_PREFERRED_INSTANCE_MARKET = 'preferred_instance_market'
 KEY_MONITORING_INTERVAL_SECS = 'monitoring_interval_secs'
 KEY_SSH_KEYS = 'ssh_keys'
 KEY_TIME_BASED_SCALING = 'time_based_scaling'
+KEY_BASELINE_COMPARISON_NODES = 'baseline_nodes'
 KEY_NOW = 'now'
 
 # default time to sleep between loops
