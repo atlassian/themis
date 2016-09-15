@@ -1,6 +1,7 @@
 import re
 import json
 import logging
+from themis import config, constants
 from themis.util.common import run, remove_lines_from_string, get_logger
 from themis.util.common import CURL_CONNECT_TIMEOUT, STATIC_INFO_CACHE_TIMEOUT, QUERY_CACHE_TIMEOUT
 from themis.util.remote import run_ssh
@@ -24,8 +25,8 @@ CLUSTER_TYPE_PRESTO = "Presto"
 LOG = get_logger(__name__)
 
 
-def ip_to_hostname(ip):
-    return 'ip-' + re.sub(r'\.', r'-', ip) + '.growth.internal.atlassian.com'
+def ip_to_hostname(ip, domain_name):
+    return 'ip-' + re.sub(r'\.', r'-', ip) + '.' + domain_name
 
 
 def hostname_to_ip(host):
@@ -91,6 +92,10 @@ def get_cluster_nodes(cluster_id):
     result = run(cmd, cache_duration_secs=QUERY_CACHE_TIMEOUT, retries=1)
     result = json.loads(result)
     result = result['Instances']
+
+    #read domain name config
+    custom_dn = config.get_value(constants.KEY_CUSTOM_DOMAIN_NAME, section=cluster_id)
+
     i = 0
     while i < len(result):
         inst = result[i]
@@ -103,6 +108,8 @@ def get_cluster_nodes(cluster_id):
             inst['gid'] = inst['InstanceGroupId'] if 'InstanceGroupId' in inst else 'n/a'
             inst['ip'] = inst['PrivateIpAddress'] if 'PrivateIpAddress' in inst else 'n/a'
             inst['host'] = inst['PrivateDnsName'] if 'PrivateDnsName' in inst else 'n/a'
+            if custom_dn:
+                inst['host'] = ip_to_hostname(hostname_to_ip(inst['host']), custom_dn)
             inst['type'] = get_instance_group_type(cluster_id, inst['InstanceGroupId'])
             inst['state'] = inst['Status']['State']
             inst['market'] = get_instance_group_details(cluster_id, inst['InstanceGroupId'])['Market']
