@@ -93,7 +93,7 @@ def get_cluster_nodes(cluster_id):
     result = json.loads(result)
     result = result['Instances']
 
-    #read domain name config
+    # read domain name config
     custom_dn = config.get_value(constants.KEY_CUSTOM_DOMAIN_NAME, section=cluster_id)
 
     i = 0

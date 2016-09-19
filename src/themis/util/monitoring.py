@@ -171,9 +171,9 @@ def get_node_queries(cluster_ip):
     # remove SSH log output line
     out = remove_lines_from_string(out, r'.*Permanently added.*')
 
-    #read config for domain
+    # read config for domain
     custom_dn = config.get_value(constants.KEY_CUSTOM_DOMAIN_NAME, section=cluster_id)
-    #assume input is actually domain name (not ip)
+    # assume input is actually domain name (not ip)
     dn = custom_dn if custom_dn else re.match(r'ip-[^\.]+\.(.+)', cluster_ip).group(1)
 
     for line in out.splitlines():

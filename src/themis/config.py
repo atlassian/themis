@@ -45,7 +45,8 @@ DEFAULT_APP_CONFIG = {
             DESC: """Comma separated list of instance markets to increase/decrease depending on order, \
                 e.g., SPOT,ON_DEMAND = increase/decrease with SPOT and if necessary ON_DEMAND""".replace('    ', '')},
         {KEY: KEY_BASELINE_COMPARISON_NODES, VAL: '20',
-            DESC: """Number of baseline nodes to use for comparing costs and calculating savings""".replace('    ', '')},
+            DESC: """Number of baseline nodes to use for comparing costs \
+                     and calculating savings""".replace('    ', '')},
         {KEY: KEY_CUSTOM_DOMAIN_NAME,
             DESC: 'Custom domain name to apply to all nodes in cluster (override aws-cli result)'}
     ]
