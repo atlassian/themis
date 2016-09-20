@@ -14,7 +14,7 @@ from themis.util import common, monitoring, aws_common, aws_pricing
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
 
 root_path = os.path.dirname(os.path.realpath(__file__))
-web_dir = root_path + '/../../../web/'
+web_dir = root_path + '/../web/'
 
 app = Flask('app', template_folder=web_dir)
 app.root_path = root_path

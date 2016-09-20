@@ -29,7 +29,10 @@ if __name__ == "__main__":
     port = args['--port'] or DEFAULT_PORT
     log_file = args['--log'] or ''
 
-    sys.path.append(os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+    parent_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
+    venv_path = os.path.realpath(os.path.join(parent_path, '.venv'))
+    if os.path.isdir(venv_path):
+        sys.path.append(parent_path)
     from themis import config
     from themis.util.common import *
 

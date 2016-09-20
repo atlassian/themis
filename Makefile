@@ -20,7 +20,7 @@ install-prereq:    ## Install prerequisites via apt-get or yum (if available)
 	which yum && sudo yum -y install blas-devel lapack-devel numpy-f2py
 
 npm:               ## Install node.js/npm dependencies
-	cd $(dir)/web/ && npm install
+	cd $(dir)/themis/web/ && npm install
 
 publish:           ## Publish the library to PyPi
 	($(VENV_RUN); ./setup.py sdist upload)
@@ -33,6 +33,6 @@ lint:              ## Run code linter to check code style
 	($(VENV_RUN); pep8 --max-line-length=120 --ignore=E128 --exclude=web,bin,$(VENV_DIR) .)
 
 server:            ## Start the server on port 8081
-	($(VENV_RUN) && eval `ssh-agent -s` && PYTHONPATH=$(dir)/src:$$PYTHONPATH src/themis/main.py server_and_loop --port=8081 --log=themis.log)
+	($(VENV_RUN) && eval `ssh-agent -s` && PYTHONPATH=$(dir)/src:$$PYTHONPATH bin/themis server_and_loop --port=8081 --log=themis.log)
 
 .PHONY: build test

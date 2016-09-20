@@ -40,9 +40,17 @@ A Web user interface (UI) is available to display the key data. The rules for au
 * `pip` (python package manager)
 * `npm` (node.js package manager, needed for Web UI dependencies)
 
-## Installation
+## Installing
 
-To install the tool, run the following command:
+The simplest way to install the latest version of Themis is via `pip`:
+
+```
+pip install themis-autoscaler
+```
+
+## Developing
+
+To install the tool dependencies for local development, run the following command:
 
 ```
 make build
