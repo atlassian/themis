@@ -22,6 +22,9 @@ install-prereq:    ## Install prerequisites via apt-get or yum (if available)
 npm:               ## Install node.js/npm dependencies
 	cd $(dir)/web/ && npm install
 
+publish:           ## Publish the library to PyPi
+	($(VENV_RUN); ./setup.py sdist upload)
+
 test:              ## Run tests
 	($(VENV_RUN) && PYTHONPATH=$(dir)/test:$$PYTHONPATH nosetests --with-coverage --with-xunit --cover-package=themis test/) && \
 	make lint

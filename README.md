@@ -167,7 +167,7 @@ Third-Party software		| 	License
 **Python/pip modules:**		|
 awscli						|	Apache License 2.0
 coverage 					|	Apache License 2.0
-cssselect	  				|	BSD License
+cssselect					|	BSD License
 docopt						|	MIT License
 flask						|	BSD License
 flask-swagger				|	MIT License

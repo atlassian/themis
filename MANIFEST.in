@@ -1,0 +1,4 @@
+include requirements.txt
+include Makefile
+recursive-include web *
+prune web/node_modules/*
