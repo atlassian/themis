@@ -10,6 +10,7 @@ KEY_SSH_KEYS = 'ssh_keys'
 KEY_TIME_BASED_SCALING = 'time_based_scaling'
 KEY_BASELINE_COMPARISON_NODES = 'baseline_nodes'
 KEY_NOW = 'now'
+KEY_CUSTOM_DOMAIN_NAME = 'custom_domain_name'
 
 # default time to sleep between loops
 LOOP_SLEEP_TIMEOUT_SECS = 3 * 60
