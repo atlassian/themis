@@ -58,13 +58,13 @@ def clean_cache():
 def setup_logging(log_file=None, format='%(asctime)s %(levelname)s: %(name)s: %(message)s'):
     if log_file:
         logging.basicConfig(filename=log_file, level=logging.INFO, format=format)
+        logging.getLogger('werkzeug').setLevel(logging.WARN)
+        formatter = logging.Formatter(format)
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        logging.getLogger().addHandler(handler)
     else:
         logging.basicConfig(level=logging.INFO, format=format)
-    logging.getLogger('werkzeug').setLevel(logging.WARN)
-    formatter = logging.Formatter(format)
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    logging.getLogger().addHandler(handler)
 
 
 def now():
