@@ -12,27 +12,42 @@
   app.config(function($stateProvider, $urlRouterProvider) {
 
     $stateProvider.
-    state('clusters', {
-      url: '/clusters',
+    state('emr', {
+      url: '/emr',
       abstract: true,
-      templateUrl: 'views/clusters.html',
-      controller: 'clustersCtrl'
+      templateUrl: 'views/emr.html',
+      controller: 'emrCtrl'
     }).
-    state('clusters.list', {
+    state('emr.list', {
       url: '/list',
       views: {
-        "list@clusters": {
-          templateUrl: 'views/clusters.list.html',
-          controller: 'clustersListCtrl'
+        "list@emr": {
+          templateUrl: 'views/emr.list.html',
+          controller: 'emrListCtrl'
         }
       }
     }).
-    state('clusters.details', {
+    state('emr.details', {
       url: '/:clusterId/:tab',
       views: {
-        "details@clusters": {
-          templateUrl: 'views/clusters.details.html',
-          controller: 'clustersDetailsCtrl'
+        "details@emr": {
+          templateUrl: 'views/emr.details.html',
+          controller: 'emrDetailsCtrl'
+        }
+      }
+    }).
+    state('kinesis', {
+      url: '/kinesis',
+      abstract: true,
+      templateUrl: 'views/kinesis.html',
+      controller: 'kinesisCtrl'
+    }).
+    state('kinesis.list', {
+      url: '/list',
+      views: {
+        "list@kinesis": {
+          templateUrl: 'views/kinesis.list.html',
+          controller: 'kinesisListCtrl'
         }
       }
     }).
@@ -42,7 +57,7 @@
       controller: 'configCtrl'
     });
 
-    $urlRouterProvider.otherwise('/clusters/list');
+    $urlRouterProvider.otherwise('/emr/list');
   });
 
   app.factory('restClient', function($resource) {

@@ -3,7 +3,7 @@
 <header class="aui-page-header">
   <div class="aui-page-header-inner">
   <div class="aui-page-header-main">
-    <h1 style="font-size: 24px" id="heading-title">Clusters</h1>
+    <h1 style="font-size: 24px" id="heading-title">EMR Clusters</h1>
   </div>
   </div>
 </header>
@@ -25,7 +25,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr ng-repeat="cluster in clusters track by cluster.id" ts-repeat ng-controller="clusterAutoscaleCtrl">
+            <tr ng-repeat="cluster in clusters track by cluster.id" ts-repeat ng-controller="emrAutoscaleCtrl">
               <td headers="cluster_name"><a ui-sref="clusters.details({ clusterId: cluster.id })">{{cluster.name}}</a></td>
               <td headers="cluster_id"><a ui-sref="clusters.details({ clusterId: cluster.id })">{{cluster.id}}</a></td>
               <td headers="cluster_type">{{cluster.type}}</td>

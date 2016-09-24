@@ -73,7 +73,7 @@
     };
   });
 
-  app.controller('clustersCtrl', function($scope) {
+  app.controller('emrCtrl', function($scope) {
 
     $scope.dialog = {
       visible: false

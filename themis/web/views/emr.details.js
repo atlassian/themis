@@ -3,7 +3,7 @@
 
   var app = angular.module('app');
 
-  app.controller('clustersDetailsCtrl', function($scope, $stateParams, $interval, restClient) {
+  app.controller('emrDetailsCtrl', function($scope, $stateParams, $interval, restClient) {
 
     var client = restClient;
 

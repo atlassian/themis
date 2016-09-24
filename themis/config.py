@@ -6,7 +6,7 @@ from themis.util.common import run
 from themis.constants import *
 
 # config file location
-ROOT_PATH = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
+ROOT_PATH = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 CONFIG_FILE_LOCATION = os.path.join(ROOT_PATH, 'autoscaling.config.json')
 CLUSTERS_FILE_LOCATION = os.path.join(ROOT_PATH, 'autoscaling.clusters.json')
 

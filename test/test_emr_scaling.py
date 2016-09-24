@@ -1,4 +1,5 @@
-from themis.scaling.server import *
+from themis.scaling.emr_scaling import *
+from themis.monitoring.emr_monitoring import *
 from themis.util import common, aws_common
 from themis import config
 from constants import *
@@ -34,7 +35,7 @@ def mock_cluster_state(spot_nodes=0, od_nodes=0, config=None):
         'ip_public': 'localhost:%s' % GANGLIA_PORT,
         'type': aws_common.CLUSTER_TYPE_PRESTO
     }
-    info = monitoring.collect_info(cluster_info, config=config, nodes=task_nodes)
+    info = emr_monitoring.collect_info(cluster_info, config=config, nodes=task_nodes)
     return info
 
 

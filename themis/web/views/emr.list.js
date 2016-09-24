@@ -3,7 +3,7 @@
 
   var app = angular.module('app');
 
-  app.controller('clusterAutoscaleCtrl', function($scope, appConfig) {
+  app.controller('emrAutoscaleCtrl', function($scope, appConfig) {
     $scope.$watch('cluster.autoscale', function(newVal, oldVal) {
       if(typeof(oldVal) != "undefined") {
         appConfig.getConfigValue('autoscaling_clusters').then(function(autoscaleClusters) {
@@ -21,7 +21,7 @@
     });
   });
 
-  app.controller('clustersListCtrl', function($scope, restClient, appConfig) {
+  app.controller('emrListCtrl', function($scope, restClient, appConfig) {
 
     var client = restClient;
 
