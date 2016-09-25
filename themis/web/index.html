@@ -2,16 +2,19 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html lang="en" ng-app="app" class="no-js" content="text/html; charset=UTF8">
 <head>
-  <title>Cluster Manager</title>
+  <title>Themis</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/png" href="/img/favicon.png" />
   <link rel="stylesheet" href="css/lib/aui.css" media="all">
   <link rel="stylesheet" href="css/lib/aui-iconfonts.css" media="all">
   <link rel="stylesheet" href="css/lib/aui-experimental.css" media="all">
   <link rel="stylesheet" href="node_modules/angular-tablesort/tablesort.css" media="all">
+  <link rel="stylesheet" href="node_modules/angular-growl-v2/build/angular-growl.css" media="all">
   <link rel="stylesheet" href="css/style.css" media="all">
 </head>
 <body>
+
+<div growl></div>
 
 <div id="page">
 
@@ -61,6 +64,7 @@
 <script src="node_modules/angular-sanitize/angular-sanitize.js"></script>
 <script src="node_modules/showdown/compressed/showdown.js"></script>
 <script src="node_modules/angular-tablesort/js/angular-tablesort.js"></script>
+<script src="node_modules/angular-growl-v2/build/angular-growl.js"></script>
 
 <script src="js/lib/aui.js"></script>
 <script src="js/lib/aui-experimental.js"></script>

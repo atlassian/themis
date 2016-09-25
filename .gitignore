@@ -2,8 +2,9 @@
 .DS_Store
 node_modules/
 monitoring.data.db
-autoscaling.config.json*
-autoscaling.clusters.json*
+*.config.json*
+*.clusters.json*
+*.resources.json*
 nosetests.xml
 /.coverage
 *.log

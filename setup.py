@@ -41,20 +41,20 @@ package_data = {
     '': ['requirements.txt', 'Makefile'],
     'themis': [
         'web/*.*',
-        'web/css/*',
-        'web/css/lib/*',
-        'web/css/lib/fonts/*',
-        'web/img/*',
-        'web/js/*',
-        'web/js/lib/*',
-        'web/views/*']
+        'web/css/*.*',
+        'web/css/lib/*.*',
+        'web/css/lib/fonts/*.*',
+        'web/img/*.*',
+        'web/js/*.*',
+        'web/js/lib/*.*',
+        'web/views/*.*']
 }
 
 if __name__ == '__main__':
 
     setup(
         name='themis-autoscaler',
-        version='0.1.5',
+        version='0.1.9',
         description='Themis is an autoscaler for Elastic Map Reduce (EMR) clusters on Amazon Web Services.',
         author='Atlassian and others',
         maintainer='Waldemar Hummer',

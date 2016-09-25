@@ -58,6 +58,7 @@ def load_fixed_prices(zone):
         except Exception, e:
             # download failed, delete file
             os.remove(file)
+            result = None
 
     if not result:
         LOG.info("Downloading latest pricing information from AWS")

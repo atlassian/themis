@@ -34,13 +34,14 @@ if __name__ == "__main__":
     if os.path.isdir(venv_path):
         sys.path.append(parent_path)
     from themis import config
+    from themis.monitoring import resources
     from themis.util.common import *
 
     # set up logging
     setup_logging(log_file)
 
     if args['server_and_loop']:
-        config.init_clusters_file()
+        resources.init_resources_file()
 
         def run(cmd):
             subprocess.call(cmd, shell=True)
@@ -56,10 +57,10 @@ if __name__ == "__main__":
             pass
     else:
         if args['server']:
-            from themis.scaling import api
+            from themis import api
             api.serve(port)
         if args['loop']:
-            from themis.scaling import server
+            from themis import server
             try:
                 server.loop()
             except KeyboardInterrupt, e:

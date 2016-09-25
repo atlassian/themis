@@ -6,11 +6,13 @@ import math
 import time
 import sqlite3
 import themis
+import traceback
 from datetime import timedelta, datetime
 from scipy import integrate
-from themis import constants
+from themis import constants, config
 from themis.util import aws_common, common, expr
 from themis.util.common import *
+from themis.config import SECTION_EMR
 from themis.util.remote import run_ssh
 
 # logger
@@ -50,16 +52,29 @@ def get_time_duration(datapoints):
     return end - start
 
 
-def get_node_load_part(cluster_ip, cluster_id, host, type, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+def get_node_load_part(cluster, host, type, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     diff_secs = monitoring_interval_secs
     format = "%m/%d/%Y %H:%M"
     start_time, end_time = get_start_and_end(diff_secs, format)
     type_param = 'mem_report' if type == 'mem' else 'cpu_report' if type == 'cpu' else 'invalid'
-    url = 'http://%s/ganglia/graph.php?h=%s&cs=%s&ce=%s&c=%s&g=%s&json=1' % (
-        cluster_ip, host, start_time, end_time, cluster_id, type_param)
-    cmd = "curl --connect-timeout %s '%s' 2> /dev/null" % (CURL_CONNECT_TIMEOUT, url)
-    result = run(cmd, GANGLIA_CACHE_TIMEOUT)
-    result = json.loads(result)
+    url_pattern = 'http://%s/ganglia/graph.php?h=%s&cs=%s&ce=%s&c=%s&g=%s&json=1'
+    result = None
+    error = None
+    # In some cases Ganglia is only available via public IP address
+    # (necessary if running the autoscaling webserver outside AWS)
+    for ip in [cluster.ip, cluster.ip_public]:
+        try:
+            url = url_pattern % (ip, host, start_time, end_time, cluster.id, type_param)
+            cmd = "curl --connect-timeout %s '%s' 2> /dev/null" % (CURL_CONNECT_TIMEOUT, url)
+            result = run(cmd, GANGLIA_CACHE_TIMEOUT)
+            result = json.loads(result)
+        except Exception, e:
+            error = e
+            # try next IP
+
+    if not result:
+        raise error
+
     mem_total = 0.0
     mem_free = 0.0
     if not result:
@@ -94,44 +109,34 @@ def get_node_load_part(cluster_ip, cluster_id, host, type, monitoring_interval_s
     return float('NaN')
 
 
-def get_node_load_cpu(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
-    return get_node_load_part(cluster_ip, cluster_id, host, 'cpu', monitoring_interval_secs)
+def get_node_load_cpu(cluster, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+    return get_node_load_part(cluster, host, 'cpu', monitoring_interval_secs)
 
 
-def get_node_load_mem(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
-    return get_node_load_part(cluster_ip, cluster_id, host, 'mem', monitoring_interval_secs)
+def get_node_load_mem(cluster, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+    return get_node_load_part(cluster, host, 'mem', monitoring_interval_secs)
 
 
-def get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+def get_node_load(cluster, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     result = {}
-    result['mem'] = get_node_load_mem(cluster_ip, cluster_id, host, monitoring_interval_secs)
-    result['cpu'] = get_node_load_cpu(cluster_ip, cluster_id, host, monitoring_interval_secs)
+    result['mem'] = get_node_load_mem(cluster, host, monitoring_interval_secs)
+    result['cpu'] = get_node_load_cpu(cluster, host, monitoring_interval_secs)
     return result
 
 
-def get_cluster_load(cluster_info, nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
-    cluster_id = cluster_info['id']
-    cluster_ip = cluster_info['ip']
+def get_cluster_load(cluster, nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     result = {}
     if not nodes:
-        nodes = aws_common.get_cluster_nodes(cluster_id)
+        nodes = aws_common.get_cluster_nodes(cluster.id)
 
     def query(node):
-        cluster_ip = cluster_info['ip']
         host = node['host']
         try:
-            load = get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs)
+            load = get_node_load(cluster, host, monitoring_interval_secs)
             result[host] = load
         except Exception, e:
-            try:
-                # Ganglia is only available via public IP address
-                # (necessary if running the autoscaling webserver outside AWS)
-                cluster_ip = cluster_info['ip_public']
-                load = get_node_load(cluster_ip, cluster_id, host, monitoring_interval_secs)
-                result[host] = load
-            except Exception, e:
-                LOG.warning("Unable to get load for node %s: %s" % (host, e))
-                result[host] = {}
+            LOG.warning("Unable to get load for node %s: %s" % (host, e))
+            result[host] = {}
 
     parallelize(nodes, query)
     return result
@@ -155,26 +160,26 @@ def get_presto_node_states(nodes, cluster_ip):
     parallelize(nodes, query)
 
 
-def get_node_queries(cluster_ip):
+def get_node_queries(cluster):
     cmd = ('presto-cli --execute \\"SELECT n.http_uri,count(q.node_id) from system.runtime.nodes n ' +
         'left join (select * from system.runtime.queries where state = \'RUNNING\' ) as q ' +
         'on q.node_id = n.node_id group by n.http_uri\\"')
 
     result = {}
-    if cluster_ip == 'localhost':
+    if cluster.ip == 'localhost':
         # for testing purposes
         return result
 
     # run ssh command
-    out = run_ssh(cmd, cluster_ip, user='hadoop', cache_duration_secs=QUERY_CACHE_TIMEOUT)
+    out = run_ssh(cmd, cluster.ip, user='hadoop', cache_duration_secs=QUERY_CACHE_TIMEOUT)
 
     # remove SSH log output line
     out = remove_lines_from_string(out, r'.*Permanently added.*')
 
     # read config for domain
-    custom_dn = config.get_value(constants.KEY_CUSTOM_DOMAIN_NAME, section=cluster_id)
+    custom_dn = config.get_value(constants.KEY_CUSTOM_DOMAIN_NAME, section=SECTION_EMR, resource=cluster.id)
     # assume input is actually domain name (not ip)
-    dn = custom_dn if custom_dn else re.match(r'ip-[^\.]+\.(.+)', cluster_ip).group(1)
+    dn = custom_dn if custom_dn else re.match(r'ip-[^\.]+\.(.+)', cluster.ip).group(1)
 
     for line in out.splitlines():
         ip = re.sub(r'.*http://([0-9\.]+):.*', r'\1', line)
@@ -248,58 +253,62 @@ def add_stats(data):
         do_add_stats(core_nodes, data['corenodes'])
 
 
-def collect_info(cluster_info, nodes=None, config=None,
+def collect_info(cluster, nodes=None, config=None,
         monitoring_interval_secs=MONITORING_INTERVAL_SECS):
-    cluster_id = cluster_info['id']
-    cluster_ip = cluster_info['ip']
-    result = {}
-    result['time_based'] = {}
-    time_based_config = get_time_based_scaling_config(cluster_id, config=config)
-    result['time_based']['enabled'] = len(time_based_config) > 0
-    result['time_based']['minimum'] = {}
-    result['nodes'] = {}
-    result['cluster_id'] = cluster_id
-    result['is_presto'] = cluster_info['type'] == aws_common.CLUSTER_TYPE_PRESTO
-    nodes_list = nodes
-    if not nodes_list:
-        nodes_list = aws_common.get_cluster_nodes(cluster_id)
-    for node in nodes_list:
-        host = node['host']
-        result['nodes'][host] = {}
-        result['nodes'][host]['type'] = node['type']
-        result['nodes'][host]['state'] = node['state']
-        result['nodes'][host]['cid'] = node['cid']
-        result['nodes'][host]['iid'] = node['iid']
-        result['nodes'][host]['gid'] = node['gid']
-        result['nodes'][host]['queries'] = 0
-        result['nodes'][host]['market'] = node['market']
     try:
-        queries = get_node_queries(cluster_ip)
-        for host in queries:
-            if host not in result['nodes']:
-                result['nodes'][host] = {}
-            result['nodes'][host]['queries'] = queries[host]
-        result['idle_nodes'] = get_idle_task_nodes(queries)
-    except subprocess.CalledProcessError, e:
-        # happens for non-presto clusters (where presto-cli is not available)
-        pass
-    result['nodes_list'] = []
-    for host in result['nodes']:
-        entry = result['nodes'][host]
-        entry['host'] = host
-        result['nodes_list'].append(entry)
-    node_infos = get_cluster_load(cluster_info, nodes=nodes,
-        monitoring_interval_secs=monitoring_interval_secs)
-    for host in node_infos:
-        result['nodes'][host]['load'] = node_infos[host]
-        if 'presto_state' in result['nodes'][host]:
-            result['nodes'][host]['presto_state'] = node_infos[host]
-    if result['is_presto']:
-        get_presto_node_states(result['nodes'], cluster_ip)
+        result = {}
+        result['time_based'] = {}
+        time_based_config = get_time_based_scaling_config(cluster.id, config=config)
+        result['time_based']['enabled'] = len(time_based_config) > 0
+        result['time_based']['minimum'] = {}
+        result['nodes'] = {}
+        result['cluster_id'] = cluster.id
+        result['is_presto'] = cluster.type == aws_common.CLUSTER_TYPE_PRESTO
+        nodes_list = nodes
+        if not nodes_list:
+            nodes_list = aws_common.get_cluster_nodes(cluster.id)
+        for node in nodes_list:
+            host = node['host']
+            result['nodes'][host] = {}
+            result['nodes'][host]['type'] = node['type']
+            result['nodes'][host]['state'] = node['state']
+            result['nodes'][host]['cid'] = node['cid']
+            result['nodes'][host]['iid'] = node['iid']
+            result['nodes'][host]['gid'] = node['gid']
+            result['nodes'][host]['queries'] = 0
+            result['nodes'][host]['market'] = node['market']
+        try:
+            queries = get_node_queries(cluster)
+            for host in queries:
+                if host not in result['nodes']:
+                    result['nodes'][host] = {}
+                result['nodes'][host]['queries'] = queries[host]
+            result['idle_nodes'] = get_idle_task_nodes(queries)
+        except subprocess.CalledProcessError, e:
+            # happens for non-presto clusters (where presto-cli is not available)
+            pass
+        result['nodes_list'] = []
+        for host in result['nodes']:
+            entry = result['nodes'][host]
+            entry['host'] = host
+            result['nodes_list'].append(entry)
+        node_infos = get_cluster_load(cluster, nodes=nodes,
+            monitoring_interval_secs=monitoring_interval_secs)
+        for host in node_infos:
+            result['nodes'][host]['load'] = node_infos[host]
+            if 'presto_state' in result['nodes'][host]:
+                result['nodes'][host]['presto_state'] = node_infos[host]
+        if result['is_presto']:
+            get_presto_node_states(result['nodes'], cluster.ip)
 
-    add_stats(result)
-    remove_NaN(result)
-    return result
+        add_stats(result)
+        remove_NaN(result)
+        return result
+
+    except Exception, e:
+        # print(traceback.format_exc())
+        LOG.warning("Error getting monitoring info for cluster %s: %s" % (cluster.id, e))
+        return {}
 
 
 def history_get_db():
@@ -319,7 +328,7 @@ def history_get_db():
     return db_connection
 
 
-def execute_dsl_string(str, context, config=None):
+def execute_dsl_string(dsl_str, context, config=None):
     expr_context = expr.ExprContext(context)
     allnodes = expr_context.allnodes
     tasknodes = expr_context.tasknodes
@@ -333,7 +342,8 @@ def execute_dsl_string(str, context, config=None):
     now_override = themis.config.get_value(constants.KEY_NOW, config=config, default=None)
     if now_override:
         now = now_override
-    return eval(str)
+
+    return eval(dsl_str)
 
 
 def history_add(cluster, state, action):
@@ -374,7 +384,7 @@ def history_get(cluster, limit=100):
 
 def get_time_based_scaling_config(cluster_id, config=None):
     result = themis.config.get_value(constants.KEY_TIME_BASED_SCALING,
-        config=config, default='{}', section=cluster_id)
+        config=config, default='{}', section=SECTION_EMR, resource=cluster_id)
     try:
         return json.loads(result)
     except Exception, e:

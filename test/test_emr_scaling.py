@@ -1,12 +1,16 @@
+from datetime import datetime
+from themis import config
 from themis.scaling.emr_scaling import *
 from themis.monitoring.emr_monitoring import *
 from themis.util import common, aws_common
-from themis import config
+from themis.config import *
+from themis.model.emr_model import *
 from constants import *
 import mock.ganglia
-import datetime
 
 server = None
+
+TEST_CLUSTER_ID = 'testCluster'
 
 
 def mock_cluster_state(spot_nodes=0, od_nodes=0, config=None):
@@ -29,13 +33,11 @@ def mock_cluster_state(spot_nodes=0, od_nodes=0, config=None):
     for i in range(0, od_nodes):
         add_node('group_task_od')
 
-    cluster_info = {
-        'id': 'testCluster',
-        'ip': 'localhost:%s' % GANGLIA_PORT,
-        'ip_public': 'localhost:%s' % GANGLIA_PORT,
-        'type': aws_common.CLUSTER_TYPE_PRESTO
-    }
-    info = emr_monitoring.collect_info(cluster_info, config=config, nodes=task_nodes)
+    cluster = EmrCluster(id=TEST_CLUSTER_ID)
+    cluster.ip = 'localhost:%s' % GANGLIA_PORT
+    cluster.ip_public = 'localhost:%s' % GANGLIA_PORT
+    cluster.type = aws_common.CLUSTER_TYPE_PRESTO
+    info = emr_monitoring.collect_info(cluster, config=config, nodes=task_nodes)
     return info
 
 
@@ -46,13 +48,32 @@ def get_server():
     return server
 
 
+def get_test_cluster_config(upscale_expr=None, downscale_expr=None, now=None,
+        time_based_scaling=None, preferred_market=None):
+    config = SystemConfiguration()
+    cluster_config = EmrClusterConfiguration()
+    # per-cluster configs
+    if upscale_expr is not None:
+        cluster_config.upscale_expr = upscale_expr
+    if downscale_expr is not None:
+        cluster_config.downscale_expr = downscale_expr
+    if time_based_scaling is not None:
+        cluster_config.time_based_scaling = time_based_scaling
+    if preferred_market is not None:
+        cluster_config.preferred_market = preferred_market
+    # global configs
+    if now is not None:
+        config.general.now = now
+    config.emr.set(TEST_CLUSTER_ID, cluster_config)
+    themis.config.TEST_CONFIG = config
+    return config
+
+
 def test_upscale():
     common.QUERY_CACHE_TIMEOUT = 0
-    config = []
-    config.append({KEY: KEY_UPSCALE_EXPR,
-        VAL: """3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 \
-                and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0"""})
-    themis.config.TEST_CONFIG = config
+    config = get_test_cluster_config(
+        upscale_expr="""3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 \
+            and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0""")
     server = get_server()
 
     server.cpu = 90  # mock 90% CPU usage
@@ -97,16 +118,13 @@ def test_upscale_time_based():
     """
     config = []
     # Tuesday
-    test_date = datetime.datetime(2016, 05, 31, 1)
-    config.append({KEY: KEY_NOW, VAL: test_date})
-    config.append({KEY: KEY_TIME_BASED_SCALING, VAL: MIN_NODES})
-    config.append({KEY: KEY_UPSCALE_EXPR,
-        VAL: """(time_based.minimum.nodes(now) - tasknodes.count.nodes) if \
-                (time_based.enabled and time_based.minimum.nodes(now) > tasknodes.count.nodes) \
-                else (3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 \
-                and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0)"""})
+    test_date = datetime(2016, 05, 31, 1)
+    config = get_test_cluster_config(now=test_date, time_based_scaling=MIN_NODES,
+        upscale_expr="""(time_based.minimum.nodes(now) - tasknodes.count.nodes) if \
+            (time_based.enabled and time_based.minimum.nodes(now) > tasknodes.count.nodes) \
+            else (3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 \
+            and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0)""")
 
-    themis.config.TEST_CONFIG = config
     server = get_server()
     server.cpu = 90  # mock 90% CPU usage
     server.mem = 50  # mock 50% memory usage
@@ -121,11 +139,9 @@ def test_upscale_time_based():
 
 def test_downscale():
     common.QUERY_CACHE_TIMEOUT = 0
-    config = []
-    config.append({KEY: KEY_DOWNSCALE_EXPR,
-        VAL: """1 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes > 2 and \
-            tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0"""})
-    themis.config.TEST_CONFIG = config
+    config = get_test_cluster_config(
+        downscale_expr="""1 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes > 2 and \
+            tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0""")
 
     server = get_server()
 
@@ -170,16 +186,12 @@ def test_downscale_time_based():
         "(Mon|Tue|Wed|Thu|Fri).*22:.*:.*": 10,
         "(Mon|Tue|Wed|Thu|Fri).*23:.*:.*": 10
     }"""
-    config = []
     # Tuesday
-    test_date = datetime.datetime(2016, 05, 31, 1)
-    config.append({KEY: KEY_NOW, VAL: test_date})
-    config.append({KEY: KEY_TIME_BASED_SCALING, VAL: MIN_NODES})
-    config.append({KEY: KEY_DOWNSCALE_EXPR,
-        VAL: """1 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes > time_based.minimum.nodes(now) \
-            and tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0"""})
-
-    themis.config.TEST_CONFIG = config
+    test_date = datetime(2016, 05, 31, 1)
+    config = get_test_cluster_config(now=test_date, time_based_scaling=MIN_NODES,
+        downscale_expr="""1 if (tasknodes.running and tasknodes.active and \
+            tasknodes.count.nodes > time_based.minimum.nodes(now) \
+            and tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0""")
 
     server.cpu = 40  # mock 40% CPU usage
     server.mem = 80  # mock 80% memory usage
@@ -198,12 +210,9 @@ def assert_downscale_preferred_market(config_market, od_nodes=0, spot_nodes=0, e
                                       expected_spot_downscale=0, num_downscale=1):
 
     common.QUERY_CACHE_TIMEOUT = 0
-    config = []
-    config.append({KEY: KEY_DOWNSCALE_EXPR,
-        VAL: """%s if (tasknodes.running and tasknodes.active and tasknodes.count.nodes > 2 and \
-            tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0""" % num_downscale})
-    config.append({KEY: KEY_PREFERRED_INSTANCE_MARKET, VAL: config_market})
-    themis.config.TEST_CONFIG = config
+    config = get_test_cluster_config(preferred_market=config_market,
+        downscale_expr="""%s if (tasknodes.running and tasknodes.active and tasknodes.count.nodes > 2 and \
+            tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0""" % num_downscale)
 
     server = get_server()
 
