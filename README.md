@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/atlassian/themis.png)](https://travis-ci.org/atlassian/themis)
+[![Coverage Status](https://coveralls.io/repos/github/atlassian/themis/badge.svg?branch=master)](https://coveralls.io/github/atlassian/themis?branch=master)
 
 # Themis - Autoscaling EMR Clusters on AWS
 
