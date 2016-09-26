@@ -3,77 +3,7 @@
 
   var app = angular.module('app');
 
-  app.factory('appConfig', function(restClient) {
-    var client = restClient;
-    return {
-      extractConfigValue: function(key, configs) {
-        var result = null;
-        configs.forEach(function(config) {
-          if(config.key == key) {
-            result = config.value;
-          }
-        });
-        return result;
-      },
-      injectConfigValue: function(key, value, configs) {
-        configs.forEach(function(config) {
-          if(config.key == key) {
-            config.value = value;
-          }
-        });
-        return configs;
-      },
-      getConfigValue: function(key, configs) {
-        if(configs)
-          return this.extractConfigValue(key, configs);
-        var self = this;
-        return this.getConfig(function(configs) {
-          var result = self.extractConfigValue(key, configs);
-          return result;
-        });
-      },
-      setConfigValue: function(key, value, configs) {
-        if(configs) {
-          this.injectConfigValue(key, value, configs);
-          return setConfig(configs);
-        }
-        var self = this;
-        return this.getConfig(function(configs) {
-          self.injectConfigValue(key, value, configs);
-          return self.setConfig(configs);
-        });
-      },
-      getConfig: function(callback) {
-        var section = 'global'; // TODO parameterize
-        return client.then(function(client) {
-          return client.default.getConfig({
-            section: section
-          }).then(function(config) {
-            config = config.obj.config;
-            if(callback)
-              return callback(config);
-            return config;
-          });
-        });
-      },
-      setConfig: function(config, callback) {
-        var section = 'global'; // TODO parameterize
-        return client.then(function(client) {
-          return client.default.setConfig({
-              config: config,
-              section: section
-            }).then(function(config) {
-            config = config.obj.config;
-            if(callback)
-              return callback(config);
-            return config;
-          });
-        });
-      }
-    };
-  });
-
-  app.controller('clustersCtrl', function($scope) {
+  app.controller('emrCtrl', function($scope) {
 
     $scope.dialog = {
       visible: false

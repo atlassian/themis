@@ -2,16 +2,19 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html lang="en" ng-app="app" class="no-js" content="text/html; charset=UTF8">
 <head>
-  <title>Cluster Manager</title>
+  <title>Themis</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/png" href="/img/favicon.png" />
   <link rel="stylesheet" href="css/lib/aui.css" media="all">
   <link rel="stylesheet" href="css/lib/aui-iconfonts.css" media="all">
   <link rel="stylesheet" href="css/lib/aui-experimental.css" media="all">
   <link rel="stylesheet" href="node_modules/angular-tablesort/tablesort.css" media="all">
+  <link rel="stylesheet" href="node_modules/angular-growl-v2/build/angular-growl.css" media="all">
   <link rel="stylesheet" href="css/style.css" media="all">
 </head>
 <body>
+
+<div growl></div>
 
 <div id="page">
 
@@ -25,13 +28,14 @@
                 <img src="img/scale_white.png" style="width: 30px; height: 30px; padding: 2px; margin-right: 10px;"/></span>
           </h1>
           <ul class="aui-nav">
-            <li><a id="data-link" href="/#/clusters/list">Clusters</a></li>
+            <li><a id="data-link" href="/#/emr/list">EMR</a></li>
+            <li><a id="data-link" href="/#/kinesis/list">Kinesis</a></li>
             <li><a id="data-link" href="/#/config">Settings</a></li>
           </ul>
         </div>
         <div class="aui-header-secondary">
           <ul class="aui-nav">
-            <li><span style="display: block; line-height: 1; padding: 13px 10px;">EMR Cluster Manager</span></li>
+            <li><span style="display: block; line-height: 1; padding: 13px 10px;">Themis Autoscaler</span></li>
           </ul>
         </div>
       </div>
@@ -60,6 +64,7 @@
 <script src="node_modules/angular-sanitize/angular-sanitize.js"></script>
 <script src="node_modules/showdown/compressed/showdown.js"></script>
 <script src="node_modules/angular-tablesort/js/angular-tablesort.js"></script>
+<script src="node_modules/angular-growl-v2/build/angular-growl.js"></script>
 
 <script src="js/lib/aui.js"></script>
 <script src="js/lib/aui-experimental.js"></script>
@@ -79,9 +84,11 @@ AJS.tablessortable.setTableSortable($(".aui-table-sortable"));
 </script>
 
 <script src="js/app.js"></script>
-<script src="views/clusters.js"></script>
-<script src="views/clusters.list.js"></script>
-<script src="views/clusters.details.js"></script>
+<script src="views/emr.js"></script>
+<script src="views/emr.list.js"></script>
+<script src="views/emr.details.js"></script>
+<script src="views/kinesis.js"></script>
+<script src="views/kinesis.list.js"></script>
 <script src="views/config.js"></script>
 
 </body>

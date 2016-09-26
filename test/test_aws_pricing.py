@@ -1,5 +1,5 @@
-from themis.util import aws_pricing
-from themis.util import common
+from themis.util import aws_pricing, common
+from themis.util.exceptions import *
 
 
 def mock_history(num_nodes=10):
@@ -40,12 +40,15 @@ def mock_history(num_nodes=10):
 
 
 def test_pricing():
-    baseline_nodes = 10
-    info = mock_history(num_nodes=10)
-    savings = aws_pricing.get_cluster_savings(info, baseline_nodes)
-    assert abs(savings['saved']) < 0.00000001
+    try:
+        baseline_nodes = 10
+        info = mock_history(num_nodes=10)
+        savings = aws_pricing.get_cluster_savings(info, baseline_nodes)
+        assert abs(savings['saved']) < 0.00000001
 
-    baseline_nodes = 15
-    info = mock_history(num_nodes=10)
-    savings = aws_pricing.get_cluster_savings(info, baseline_nodes)
-    assert savings['saved'] > 1 and savings['saved'] < 10
+        baseline_nodes = 15
+        info = mock_history(num_nodes=10)
+        savings = aws_pricing.get_cluster_savings(info, baseline_nodes)
+        assert savings['saved'] > 1 and savings['saved'] < 10
+    except ConnectivityException, e:
+        print('Connectivity problems, skipping pricing test...')

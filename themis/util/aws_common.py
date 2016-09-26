@@ -19,7 +19,9 @@ INSTANCE_STATE_TERMINATED = 'TERMINATED'
 
 INVALID_CONFIG_VALUE = '_invalid_value_to_avoid_restart_'
 
-CLUSTER_TYPE_PRESTO = "Presto"
+# TODO move to model
+CLUSTER_TYPE_PRESTO = 'Presto'
+CLUSTER_TYPE_HIVE = 'Hive'
 
 # logger
 LOG = get_logger(__name__)
@@ -140,20 +142,19 @@ def spawn_task_node(instance_group_id, current_size, additional_nodes=1):
 
 
 def is_presto_cluster(cluster):
-    return cluster['type'] == 'Presto'
+    return cluster.type == 'Presto'
 
 
 def terminate_inactive_nodes(cluster, cluster_state):
     if not is_presto_cluster(cluster):
         return
-    cluster_ip = cluster['ip']
     nodes = cluster_state['nodes']
     for key, node in nodes.iteritems():
         if (node['state'] == INSTANCE_STATE_RUNNING and node['presto_state'] not in
                 [PRESTO_STATE_SHUTTING_DOWN, PRESTO_STATE_ACTIVE]):
             try:
                 cmd = "cat /etc/presto/conf/config.properties | grep http-server.threads"
-                out = run_ssh(cmd, cluster_ip, user='hadoop',
+                out = run_ssh(cmd, cluster.ip, user='hadoop',
                     via_hosts=[node['host']], cache_duration_secs=QUERY_CACHE_TIMEOUT)
                 if INVALID_CONFIG_VALUE in out:
                     LOG.info("Terminating instance of idle node %s in instance group %s" %

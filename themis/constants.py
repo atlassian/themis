@@ -1,11 +1,9 @@
 # global configuration values
-KEY_LOOP_INTERVAL_SECS = 'loop_interval_secs'
+KEY_LOOP_INTERVAL_SECS = 'scaling_loop_interval'
 KEY_DOWNSCALE_ITERATIONS = 'downscale_trigger_iterations'
 KEY_UPSCALE_EXPR = 'upscale_expr'
 KEY_DOWNSCALE_EXPR = 'downscale_expr'
-KEY_AUTOSCALING_CLUSTERS = 'autoscaling_clusters'
-KEY_PREFERRED_INSTANCE_MARKET = 'preferred_instance_market'
-KEY_MONITORING_INTERVAL_SECS = 'monitoring_interval_secs'
+KEY_PREFERRED_INSTANCE_MARKET = 'preferred_market'
 KEY_SSH_KEYS = 'ssh_keys'
 KEY_TIME_BASED_SCALING = 'time_based_scaling'
 KEY_BASELINE_COMPARISON_NODES = 'baseline_nodes'

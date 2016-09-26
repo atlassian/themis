@@ -2,58 +2,19 @@ import os
 import json
 import threading
 from themis.util import common
-from themis.util.common import run
+from themis.util.common import run, now
+from themis.model.aws_model import *
 from themis.constants import *
 
+
 # config file location
-ROOT_PATH = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..'))
-CONFIG_FILE_LOCATION = os.path.join(ROOT_PATH, 'autoscaling.config.json')
-CLUSTERS_FILE_LOCATION = os.path.join(ROOT_PATH, 'autoscaling.clusters.json')
+CONFIG_FILE_LOCATION = os.path.join(os.getcwd(), 'themis.config.json')
+RESOURCES_FILE_LOCATION = os.path.join(os.getcwd(), 'themis.resources.json')
 
 # configuration sections
-SECTION_GLOBAL = 'global'
-SECTION_CLUSTER_TEMPLATE = 'cluster_template'
-
-DEFAULT_APP_CONFIG = {
-    SECTION_GLOBAL: [
-        {KEY: KEY_SSH_KEYS, VAL: '~/.ssh/atl-ai-etl-prod.pem,~/.ssh/atl-ai-etl-dev.pem,~/.ssh/ai-etl.pem',
-            DESC: 'Comma-separated list of SSH public key files to use for connecting to the clusters.'},
-        {KEY: KEY_AUTOSCALING_CLUSTERS, VAL: '',
-            DESC: 'Comma-separated list of cluster IDs to auto-scale'},
-        {KEY: KEY_LOOP_INTERVAL_SECS, VAL: LOOP_SLEEP_TIMEOUT_SECS,
-            DESC: 'Loop interval seconds'},
-        {KEY: KEY_MONITORING_INTERVAL_SECS, VAL: 60 * 10,
-            DESC: 'Time period (seconds) of historical monitoring data to consider for scaling decisions'}
-    ],
-    SECTION_CLUSTER_TEMPLATE: [
-        {KEY: KEY_DOWNSCALE_EXPR,
-            VAL: """1 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes > time_based.minimum.nodes(now) \
-                    and tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) \
-                    else 0""".replace('    ', ''),
-            DESC: 'Trigger cluster downscaling by the number of nodes this expression evaluates to'},
-        {KEY: KEY_UPSCALE_EXPR,
-            VAL: """(time_based.minimum.nodes(now) - tasknodes.count.nodes) if \
-                    (time_based.enabled and time_based.minimum.nodes(now) > tasknodes.count.nodes) \
-                    else (3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 \
-                    and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0)""".replace('    ', ''),
-            DESC: "Trigger cluster upscaling by the number of nodes this expression evaluates to"},
-        {KEY: KEY_TIME_BASED_SCALING, VAL: "{}",
-            DESC: """A JSON string that maps date regular expressions to minimum number of nodes. \
-            Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". \
-            Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.:.*": 1}'}""".replace('    ', '')},
-        {KEY: KEY_PREFERRED_INSTANCE_MARKET, VAL: MARKET_SPOT,
-            DESC: """Comma separated list of instance markets to increase/decrease depending on order, \
-                e.g., SPOT,ON_DEMAND = increase/decrease with SPOT and if necessary ON_DEMAND""".replace('    ', '')},
-        {KEY: KEY_BASELINE_COMPARISON_NODES, VAL: '20',
-            DESC: """Number of baseline nodes to use for comparing costs \
-                     and calculating savings""".replace('    ', '')},
-        {KEY: KEY_CUSTOM_DOMAIN_NAME,
-            DESC: 'Custom domain name to apply to all nodes in cluster (override aws-cli result)'}
-    ]
-}
-
-# load list of clusters
-CLUSTER_LIST = common.load_json_file(CLUSTERS_FILE_LOCATION, [])
+SECTION_GLOBAL = 'general'
+SECTION_EMR = 'emr'
+SECTION_KINESIS = 'kinesis'
 
 # set this to override config for testing
 TEST_CONFIG = None
@@ -61,88 +22,187 @@ TEST_CONFIG = None
 # logger
 LOG = common.get_logger(__name__)
 
+# global config pointer
+CONFIG = None
 
-def init_clusters_file():
-    cfg = []
-    # Don't run this in parallel for now. There seems to be an issue with
-    # the AWS CLI or API if we run multiple "aws ..." commands in parallel
-    run_parallel = False
+# maps config keys to their descriptions
+ALL_DESCRIPTIONS = {}
 
-    def init_cluster_config(c):
-        if c['Status']['State'][0:10] != 'TERMINATED':
-            out1 = run('aws emr describe-cluster --cluster-id=%s' % c['Id'], retries=1)
-            out1 = json.loads(out1)
-            cluster_details = out1['Cluster']
-            cluster = {
-                'id': c['Id'],
-                'name': c['Name'],
-                'ip': 'N/A',
-                'ip_public': cluster_details['MasterPublicDnsName']
-            }
-            has_ganglia = False
-            for app in out1['Cluster']['Applications']:
-                if app['Name'] == 'Hive' and 'type' not in cluster:
-                    cluster['type'] = 'Hive'
-                if app['Name'][0:6] == 'Presto':
-                    cluster['type'] = 'Presto'
-                if app['Name'] == 'Ganglia':
-                    has_ganglia = True
-            if has_ganglia:
-                LOG.info('Getting details for cluster %s' % c['Id'])
-                # get private IP address of cluster
-                for g in cluster_details['InstanceGroups']:
-                    if g['InstanceGroupType'] == 'MASTER':
-                        cmd = ('aws emr list-instances --cluster-id=%s --instance-states ' +
-                            'AWAITING_FULFILLMENT PROVISIONING BOOTSTRAPPING RUNNING') % c['Id']
-                        out2 = run(cmd, retries=6)
-                        if not out2:
-                            LOG.warning("No output for command '%s'" % cmd)
-                        out2 = json.loads(out2)
-                        for inst in out2['Instances']:
-                            if inst['InstanceGroupId'] == g['Id']:
-                                cluster['ip'] = inst['PrivateDnsName']
-                cfg.append(cluster)
-            else:
-                LOG.info('Ignoring cluster %s (Ganglia not installed)' % c['Id'])
-
-    if not os.path.isfile(CLUSTERS_FILE_LOCATION):
-        LOG.info("Initializing config file with list of clusters from AWS: %s" % CLUSTERS_FILE_LOCATION)
-        out = run('aws emr list-clusters')
-        out = json.loads(out)
-        if run_parallel:
-            common.parallelize(out['Clusters'], init_cluster_config)
-        else:
-            for c in out['Clusters']:
-                init_cluster_config(c)
-        common.save_json_file(CLUSTERS_FILE_LOCATION, cfg)
-        LOG.info('Done initializing.')
+# seconds to cache the config for
+CONFIG_CACHE_DURATION = 10
+last_config_load_time = 0
 
 
-def read(section=SECTION_GLOBAL):
-    appConfig = common.load_json_file(CONFIG_FILE_LOCATION)
-    if not appConfig:
-        common.save_json_file(CONFIG_FILE_LOCATION, DEFAULT_APP_CONFIG)
-        appConfig = DEFAULT_APP_CONFIG
-    if section not in appConfig:
-        if section != SECTION_GLOBAL:
-            return DEFAULT_APP_CONFIG[SECTION_CLUSTER_TEMPLATE]
-        return []
-    return appConfig[section]
+class ConfigObject(JsonObject):
+    def get(self, *keys, **kwargs):
+        default = kwargs.get('default')
+        if len(keys) > 1:
+            first_key = keys[0]
+            remaining_keys = keys[1:]
+            item = self.__dict__.get(first_key)
+            if item is None:
+                return default
+            return item.get(*remaining_keys, **kwargs)
+        key = keys[0]
+        result = self.__dict__.get(key)
+        if result is None:
+            return default
+        return result
+
+    def set(self, key, value):
+        self.__dict__[key] = value
+
+    @classmethod
+    def from_json(cls, j):
+        result = cls()
+        for k, v in j.iteritems():
+            result.set(k, v)
+        return result
 
 
-def write(config, section=SECTION_GLOBAL):
-    appConfig = common.load_json_file(CONFIG_FILE_LOCATION)
-    if not appConfig:
-        appConfig = DEFAULT_APP_CONFIG
-    appConfig[section] = config
-    common.save_json_file(CONFIG_FILE_LOCATION, appConfig)
+class SystemConfiguration(ConfigObject):
+    """Main configuration class representing the content of file themis.config.json"""
+
+    def __init__(self):
+        self.general = GeneralConfiguration()
+        self.emr = EmrConfiguration()
+        self.kinesis = KinesisConfiguration()
+
+    @classmethod
+    def from_json(cls, j):
+        result = SystemConfiguration()
+        result.general = GeneralConfiguration.from_json(j.get('general'))
+        result.emr = EmrConfiguration.from_json(j.get('emr'))
+        result.kinesis = KinesisConfiguration.from_json(j.get('kinesis'))
+        return result
+
+
+class GeneralConfiguration(ConfigObject):
+    CONFIG_ITEMS = {
+        'ssh_keys': 'Comma-separated list of SSH public key files to use for connecting to the clusters.',
+        # TODO move to EMR config
+        'autoscaling_clusters': 'Comma-separated list of cluster IDs to auto-scale',
+        'scaling_loop_interval': 'Loop interval seconds',
+        'monitoring_time_window': 'Time period (seconds) of historical monitoring data to consider for scaling'
+    }
+
+    def __init__(self):
+        self.ssh_keys = '~/.ssh/atl-ai-etl-prod.pem,~/.ssh/atl-ai-etl-dev.pem,~/.ssh/ai-etl.pem'
+        self.autoscaling_clusters = ''
+        self.monitoring_time_window = 60 * 10
+        self.scaling_loop_interval = LOOP_SLEEP_TIMEOUT_SECS
+
+
+class EmrConfiguration(ConfigObject):
+    def __init__(self):
+        # self.clusters = []
+        # TODO
+        pass
+
+    def get(self, *keys, **kwargs):
+        result = super(EmrConfiguration, self).get(*keys, **kwargs)
+        if result is None and len(keys) == 1:
+            # return default config
+            result = EmrClusterConfiguration()
+            self.set(keys[0], result)
+        return result
+
+    def set(self, key, value):
+        if isinstance(value, dict):
+            value = EmrClusterConfiguration.from_dict(value)
+        return super(EmrConfiguration, self).set(key, value)
+
+
+class EmrClusterConfiguration(ConfigObject):
+    CONFIG_ITEMS = {
+        'downscale_expr': 'Trigger cluster downscaling by the number of nodes this expression evaluates to',
+        'upscale_expr': 'Trigger cluster upscaling by the number of nodes this expression evaluates to',
+        'time_based_scaling': """A JSON string that maps date regular expressions to minimum number of nodes. \
+            Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". \
+            Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.:.*": 1}'}""".replace('    ', ''),
+        'preferred_market': """Comma separated list of instance markets to increase/decrease depending on order, \
+                e.g., SPOT,ON_DEMAND = increase/decrease with SPOT and if necessary ON_DEMAND""".replace('    ', ''),
+        'baseline_nodes': 'Number of baseline nodes to use for comparing costs and calculating savings',
+        'custom_domain_name': 'Custom domain name to apply to all nodes in cluster (override aws-cli result)'
+    }
+
+    def __init__(self):
+        self.downscale_expr = """1 if \
+            (tasknodes.running and tasknodes.active and tasknodes.count.nodes > time_based.minimum.nodes(now) \
+            and tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) \
+            else 0""".replace('    ', '')
+        self.upscale_expr = """(time_based.minimum.nodes(now) - tasknodes.count.nodes) if \
+            (time_based.enabled and time_based.minimum.nodes(now) > tasknodes.count.nodes) \
+            else (3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 \
+            and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0)""".replace('    ', '')
+        self.time_based_scaling = '{}'
+        self.preferred_market = MARKET_SPOT
+        self.baseline_nodes = '20'
+        self.custom_domain_name = ''
+
+
+class KinesisConfiguration(ConfigObject):
+    CONFIG_ITEMS = {}
+
+    def __init__(self):
+        self.streams = []
+
+
+ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration]
+# populate ALL_DESCRIPTIONS
+for clazz in ALL_CONFIG_CLASSES:
+    ALL_DESCRIPTIONS.update(clazz.CONFIG_ITEMS)
+
+
+def convert_to_list(cfg):
+    result = []
+    for k, v in cfg.iteritems():
+        result.append({KEY: k, VAL: v, DESC: ALL_DESCRIPTIONS.get(k)})
+    return result
+
+
+def convert_from_list(cfgs):
+    result = {}
+    for cfg in cfgs:
+        result[cfg[KEY]] = cfg[VAL]
+    return result
+
+
+def get_config(force_load=False):
+    global CONFIG, TEST_CONFIG, last_config_load_time
+    if TEST_CONFIG:
+        return TEST_CONFIG
+    time_now = now()
+    if (time_now - last_config_load_time) > CONFIG_CACHE_DURATION:
+        force_load = True
+    if CONFIG and not force_load:
+        return CONFIG
+    app_config = common.load_json_file(CONFIG_FILE_LOCATION)
+    last_config_load_time = time_now
+    if not app_config:
+        app_config = SystemConfiguration()
+        common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
+    else:
+        app_config = SystemConfiguration.from_json(app_config)
+    CONFIG = app_config
+    return app_config
+
+
+def write(config, section=SECTION_GLOBAL, resource=None):
+    app_config = get_config(force_load=True)
+    if resource:
+        target_config = app_config.get(section)
+        target_config.set(resource, config)
+    else:
+        app_config.set(section, config)
+    common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
     return config
 
 
-def get_value(key, config=None, default=None, section=SECTION_GLOBAL):
+def get_value(key, config=None, default=None, section=SECTION_GLOBAL, resource=None):
     if not config:
-        config = read(section)
-    for c in config:
-        if c[KEY] == key and VAL in c:
-            return c[VAL]
-    return default
+        config = get_config()
+    keys = (section, key)
+    if resource:
+        keys = (section, resource, key)
+    return config.get(*keys, default=default)

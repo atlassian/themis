@@ -7,6 +7,7 @@ import time
 import subprocess
 from scipy import integrate, interpolate
 from themis.util.common import *
+from themis.util.exceptions import *
 
 LOCATION_NAMES = {
     'us-east-1': 'US East (N. Virginia)'
@@ -52,11 +53,20 @@ def load_fixed_prices(zone):
     result = None
     if os.path.isfile(file):
         result = open(file).read()
-        result = json.loads(result)
-    else:
+        try:
+            result = json.loads(result)
+        except Exception, e:
+            # download failed, delete file
+            os.remove(file)
+            result = None
+
+    if not result:
         LOG.info("Downloading latest pricing information from AWS")
-        cmd = "curl %s > %s" % (url, file)
-        run(cmd)
+        try:
+            cmd = "curl %s > %s" % (url, file)
+            run(cmd)
+        except Exception, e:
+            raise ConnectivityException('Unable to get pricing information.')
         result = open(file).read()
         result = json.loads(result)
     return result

@@ -3,9 +3,10 @@
 
   var app = angular.module('app');
 
-  app.controller('clustersDetailsCtrl', function($scope, $stateParams, $interval, restClient) {
+  app.controller('emrDetailsCtrl', function($scope, $stateParams, $interval, restClient, appConfig) {
 
     var client = restClient;
+    appConfig.section = 'emr';
 
     $scope.state = {};
     $scope.history = {};
@@ -72,7 +73,7 @@
       client.then(function(client) {
 
         /* load current state */
-        client.default.getState({cluster_id: $scope.clusterId}).then(function(obj) {
+        client.default.getEmrState({cluster_id: $scope.clusterId}).then(function(obj) {
           $scope.state.loading = false;
           loadStateData(obj.obj);
         }, function(err) {
@@ -81,7 +82,7 @@
         });
 
         /* load history */
-        client.default.getHistory({cluster_id: $scope.clusterId}).then(function(obj) {
+        client.default.getEmrHistory({cluster_id: $scope.clusterId}).then(function(obj) {
           $scope.history.loading = false;
           loadHistoryData(obj.obj);
         }, function(err) {
@@ -91,7 +92,7 @@
 
         /* load savings */
         $scope.savings.saved = 'n/a';
-        client.default.getCosts({request: {
+        client.default.getEmrCosts({request: {
             cluster_id: $scope.clusterId
           }
         }).then(function(obj) {
@@ -112,7 +113,7 @@
         /* load current state */
         $scope.dialog("Confirm Restart", "This will send the SHUTTING_DOWN signal to this node, causing the node to restart. Continue?", function(result) {
           $scope.refreshing[node.host] = true;
-          client.default.restartNode({request: {
+          client.default.restartEmrNode({request: {
                 cluster_id: $scope.clusterId,
                 node_host: node.host}
           }).then(function(obj) {
@@ -129,33 +130,30 @@
     };
 
     $scope.loadConfig = function() {
-      client.then(function(client) {
-        $scope.settings.loading = true;
-        client.default.getConfig({
-            section: $stateParams.clusterId
-        }).then(function(obj) {
-          $scope.settings.loading = false;
-          $scope.settings.config = obj.obj.config;
-        }, function(err) {
-          $scope.settings.loading = false;
-          console.log(err);
-        });
+      $scope.settings.loading = true;
+      appConfig.getConfig({
+          resource: $stateParams.clusterId
+      }).then(function(config) {
+        $scope.settings.loading = false;
+        $scope.settings.config = config;
+      }, function(err) {
+        $scope.settings.loading = false;
+        console.log(err);
       });
     };
 
     $scope.saveConfig = function() {
-      client.then(function(client) {
-        $scope.settings.loading = true;
-        client.default.setConfig({
-              section: $stateParams.clusterId,
-              config: $scope.settings.config
-        }).then(function(obj) {
-          $scope.settings.loading = false;
-          $scope.settings.config = obj.obj.config;
-        }, function(err) {
-          $scope.settings.loading = false;
-          console.log(err);
-        });
+      $scope.settings.loading = true;
+      var params = {
+        resource: $stateParams.clusterId
+      };
+      appConfig.setConfig($scope.settings.config, params).
+      then(function(config) {
+        $scope.settings.loading = false;
+        $scope.settings.config = config;
+      }, function(err) {
+        $scope.settings.loading = false;
+        console.log(err);
       });
     };
 
