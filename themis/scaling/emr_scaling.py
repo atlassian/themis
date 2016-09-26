@@ -28,16 +28,31 @@ def get_autoscaling_clusters():
     return re.split(r'\s*,\s*', cfg.general.autoscaling_clusters)
 
 
+def get_node_groups_or_preferred_markets(cluster_id, info=None, config=None):
+    if not config:
+        config = themis.config.get_config()
+    cluster_config = config.get(SECTION_EMR, cluster_id)
+    preferred = cluster_config.group_or_preferred_market
+    if not preferred:
+        return [MARKET_SPOT, MARKET_ON_DEMAND]
+    # try to evaluate as an expression
+    try:
+        if info:
+            result = emr_monitoring.execute_dsl_string(preferred, info, config)
+            if not isinstance(result, (list, tuple)):
+                result = [str(result)]
+            return result
+    except Exception, e:
+        # unable to parse as expression, continue below...
+        pass
+    # return verbatim strings, split by comma
+    return re.split("\s*,\s*", preferred)
+
+
 def get_termination_candidates(info, config=None):
     result = []
     cluster_id = info['cluster_id']
-    if not config:
-        config = themis.config.get_config()
-    preferred = config.get(SECTION_EMR, cluster_id, KEY_PREFERRED_INSTANCE_MARKET, default='')
-    if not preferred:
-        preferred = [MARKET_SPOT, MARKET_ON_DEMAND]
-    else:
-        preferred = re.split("\s*,\s*", preferred)
+    preferred = get_node_groups_or_preferred_markets(cluster_id, info=info, config=config)
     for market in preferred:
         if market:
             cand = get_termination_candidates_for_market(info, market=market)
@@ -119,18 +134,18 @@ def spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, nodes_to_add=1):
     aws_common.spawn_task_node(tasknodes_group, current_num_nodes, nodes_to_add)
 
 
-def select_tasknode_group(tasknodes_groups, cluster_id):
+def select_tasknode_group(tasknodes_groups, cluster_id, info=None):
     if len(tasknodes_groups) <= 0:
         raise Exception("Empty list of task node instance groups for scaling: %s" % tasknodes_groups)
     if len(tasknodes_groups) == 1:
         return tasknodes_groups[0]
-    app_config = config.get_config()
-    preferred = app_config.get(SECTION_EMR, cluster_id, KEY_PREFERRED_INSTANCE_MARKET)
-    for group in tasknodes_groups:
-        if group['Market'] == preferred:
-            return group
-    raise Exception("Could not select task node instance group for preferred market '%s': %s" %
-            (preferred, tasknodes_groups))
+    preferred_list = get_node_groups_or_preferred_markets(cluster_id, info=info)
+    for preferred in preferred_list:
+        for group in tasknodes_groups:
+            if group['Market'] == preferred or group['id'] == preferred:
+                return group
+    raise Exception("Could not select task node instance group for preferred market %s: %s" %
+            (preferred_list, tasknodes_groups))
 
 
 def perform_scaling(cluster):
@@ -151,7 +166,7 @@ def perform_scaling(cluster):
                     nodes_to_add = get_nodes_to_add(info)
                     if len(nodes_to_add) > 0:
                         tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster.id)
-                        tasknodes_group = select_tasknode_group(tasknodes_groups, cluster.id)['id']
+                        tasknodes_group = select_tasknode_group(tasknodes_groups, cluster.id, info=info)['id']
                         current_num_nodes = len([n for key, n in info['nodes'].iteritems()
                             if n['gid'] == tasknodes_group])
                         spawn_nodes(cluster.ip, tasknodes_group, current_num_nodes, len(nodes_to_add))

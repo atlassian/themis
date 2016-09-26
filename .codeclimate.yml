@@ -1,0 +1,27 @@
+---
+engines:
+  csslint:
+    enabled: true
+  duplication:
+    enabled: true
+    config:
+      languages:
+      - javascript
+      - python
+      - html
+  eslint:
+    enabled: true
+  fixme:
+    enabled: true
+  radon:
+    enabled: true
+ratings:
+  paths:
+  - "**.css"
+  - "**.js"
+  - "**.py"
+  - "**.html"
+exclude_paths:
+- test/
+- themis/web/css/lib/
+- themis/web/js/lib/

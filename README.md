@@ -1,5 +1,8 @@
 [![Build Status](https://travis-ci.org/atlassian/themis.png)](https://travis-ci.org/atlassian/themis)
 [![Coverage Status](https://coveralls.io/repos/github/atlassian/themis/badge.svg?branch=master)](https://coveralls.io/github/atlassian/themis?branch=master)
+[![PyPI Version](https://badge.fury.io/py/themis-autoscaler.svg)](https://badge.fury.io/py/themis-autoscaler)
+[![PyPI License](https://img.shields.io/pypi/l/themis-autoscaler.svg)](https://img.shields.io/pypi/l/themis-autoscaler.svg)
+[![Code Climate](https://codeclimate.com/github/atlassian/themis/badges/gpa.svg)](https://codeclimate.com/github/atlassian/themis)
 
 # Themis - Autoscaling EMR Clusters on AWS
 
@@ -32,7 +35,7 @@ two modes:
 
 A Web user interface (UI) is available to display the key data. The rules for autoscaling can be customized in a configuration file or via the Web UI.
 
-![Autoscaling Example](https://raw.githubusercontent.com/atlassian/themis/master/web/img/scaling.png)
+![Autoscaling Example](https://raw.githubusercontent.com/atlassian/themis/master/themis/web/img/scaling.png)
 
 ## Requirements
 
@@ -145,6 +148,25 @@ eval `ssh-agent -s`
 # start the server on port 9090
 make server
 ```
+
+## Change Log
+
+* v0.1.12: Add DSL support for preferred instance market config; allow to configure specific task group
+* v0.1.9: Add coveralls badge to README
+* v0.1.8: Rework code, add model classes, make model and configuration generic, prepare for adding Kinesis autoscaling
+* v0.1.7: Add support for custom domain names
+* v0.1.4: First functional package published on PyPi
+* v0.1.0: Initial release
+
+## Contributors
+
+The following developers have contributed to Themis (in order of appearance of their first contribution):
+
+* [whummer](https://github.com/whummer) (Waldemar Hummer)
+* [FJK-NZ](https://github.com/FJK-NZ) (Feliks Krawczyk)
+* [hye1](https://github.com/hye1) (Hao Ye)
+* [tdawber](https://github.com/tdawber) (Thomas Dawber)
+* [patanachai](https://github.com/patanachai)
 
 ## Contributing
 

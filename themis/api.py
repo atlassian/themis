@@ -8,6 +8,7 @@ import threading
 import traceback
 import themis
 from themis import config, server
+from themis.config import *
 from themis.constants import *
 from themis.util import common, aws_common, aws_pricing
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
@@ -130,7 +131,7 @@ def get_emr_state(cluster_id):
               in: path
     """
     app_config = config.get_config()
-    cluster = resources.get_resource('emr', cluster_id)
+    cluster = resources.get_resource(SECTION_EMR, cluster_id)
     monitoring_interval_secs = int(app_config.general.monitoring_time_window)
     info = emr_monitoring.collect_info(cluster, monitoring_interval_secs=monitoring_interval_secs)
     return jsonify(info)
@@ -196,7 +197,7 @@ def get_emr_costs():
     cluster_id = data['cluster_id']
     num_datapoints = data['num_datapoints'] if 'num_datapoints' in data else 300
     baseline_nodes = (data['baseline_nodes'] if 'baseline_nodes' in data else
-        config.get_value(KEY_BASELINE_COMPARISON_NODES, section=cluster_id, default=20))
+        config.get_value(KEY_BASELINE_COMPARISON_NODES, section=SECTION_EMR, resource=cluster_id, default=20))
     baseline_nodes = int(baseline_nodes)
     info = emr_monitoring.history_get(cluster_id, num_datapoints)
     common.remove_NaN(info)

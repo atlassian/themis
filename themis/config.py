@@ -120,8 +120,9 @@ class EmrClusterConfiguration(ConfigObject):
         'time_based_scaling': """A JSON string that maps date regular expressions to minimum number of nodes. \
             Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". \
             Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.:.*": 1}'}""".replace('    ', ''),
-        'preferred_market': """Comma separated list of instance markets to increase/decrease depending on order, \
-                e.g., SPOT,ON_DEMAND = increase/decrease with SPOT and if necessary ON_DEMAND""".replace('    ', ''),
+        'group_or_preferred_market': """Comma separated list of task instance groups and/or instance markets to \
+            increase/decrease depending on order, e.g., "g-12345,SPOT,ON_DEMAND" means to autoscale task group \
+            g-12345 if available, otherwise any SPOT group, or if necessary ON_DEMAND groups""".replace('    ', ''),
         'baseline_nodes': 'Number of baseline nodes to use for comparing costs and calculating savings',
         'custom_domain_name': 'Custom domain name to apply to all nodes in cluster (override aws-cli result)'
     }
@@ -136,7 +137,8 @@ class EmrClusterConfiguration(ConfigObject):
             else (3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 \
             and (tasknodes.average.cpu > 0.7 or tasknodes.average.mem > 0.95)) else 0)""".replace('    ', '')
         self.time_based_scaling = '{}'
-        self.preferred_market = MARKET_SPOT
+        self.group_or_preferred_market = ('"%s" if tasknodes.count.nodes < 15 ' +
+            'else "%s"') % (MARKET_ON_DEMAND, MARKET_SPOT)
         self.baseline_nodes = '20'
         self.custom_domain_name = ''
 
