@@ -12,10 +12,13 @@ addons:
     - gfortran
 
 install:
-  - travis_wait 30 make build
+  - travis_wait 20 make build
 
 script:
   - make test
+
+after_success:  
+  - make coveralls
 
 notifications:
   email: false

@@ -60,7 +60,7 @@ def get_test_cluster_config(upscale_expr=None, downscale_expr=None, now=None,
     if time_based_scaling is not None:
         cluster_config.time_based_scaling = time_based_scaling
     if preferred_market is not None:
-        cluster_config.preferred_market = preferred_market
+        cluster_config.group_or_preferred_market = preferred_market
     # global configs
     if now is not None:
         config.general.now = now
@@ -139,7 +139,7 @@ def test_upscale_time_based():
 
 def test_downscale():
     common.QUERY_CACHE_TIMEOUT = 0
-    config = get_test_cluster_config(
+    config = get_test_cluster_config(preferred_market=MARKET_SPOT,
         downscale_expr="""1 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes > 2 and \
             tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) else 0""")
 

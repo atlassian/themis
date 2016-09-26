@@ -25,6 +25,9 @@ npm:               ## Install node.js/npm dependencies
 publish:           ## Publish the library to PyPi
 	($(VENV_RUN); ./setup.py sdist upload)
 
+coveralls:
+	($(VENV_RUN); coveralls)
+
 test:              ## Run tests
 	($(VENV_RUN) && PYTHONPATH=$(dir)/test:$$PYTHONPATH nosetests --with-coverage --with-xunit --cover-package=themis test/) && \
 	make lint
