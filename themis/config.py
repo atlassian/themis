@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import threading
 from themis.util import common
 from themis.util.common import run, now
@@ -91,6 +92,9 @@ class GeneralConfiguration(ConfigObject):
         self.autoscaling_clusters = ''
         self.monitoring_time_window = 60 * 10
         self.scaling_loop_interval = LOOP_SLEEP_TIMEOUT_SECS
+
+    def get_autoscaling_clusters(self):
+        return re.split(r'\s*,\s*', self.autoscaling_clusters)
 
 
 class EmrConfiguration(ConfigObject):

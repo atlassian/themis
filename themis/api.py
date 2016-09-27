@@ -13,7 +13,7 @@ from themis.constants import *
 from themis.util import common, aws_common, aws_pricing
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
 from themis.scaling import emr_scaling
-from themis.monitoring import resources, emr_monitoring
+from themis.monitoring import resources, emr_monitoring, database
 
 root_path = os.path.dirname(os.path.realpath(__file__))
 web_dir = root_path + '/web/'
@@ -146,7 +146,7 @@ def get_emr_history(cluster_id):
             - name: 'cluster_id'
               in: path
     """
-    info = emr_monitoring.history_get(cluster_id, 100)
+    info = database.history_get(cluster_id, 100)
     common.remove_NaN(info)
     return jsonify(results=info)
 
@@ -199,7 +199,7 @@ def get_emr_costs():
     baseline_nodes = (data['baseline_nodes'] if 'baseline_nodes' in data else
         config.get_value(KEY_BASELINE_COMPARISON_NODES, section=SECTION_EMR, resource=cluster_id, default=20))
     baseline_nodes = int(baseline_nodes)
-    info = emr_monitoring.history_get(cluster_id, num_datapoints)
+    info = database.history_get(cluster_id, num_datapoints)
     common.remove_NaN(info)
     result = aws_pricing.get_cluster_savings(info, baseline_nodes)
     return jsonify(results=result, baseline_nodes=baseline_nodes)
