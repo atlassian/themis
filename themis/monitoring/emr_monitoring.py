@@ -13,6 +13,8 @@ from themis.util import aws_common, common, expr
 from themis.util.common import *
 from themis.config import SECTION_EMR
 from themis.util.remote import run_ssh
+from themis.model.resources_model import *
+import themis.model.emr_model
 
 # logger
 LOG = get_logger(__name__)
@@ -358,3 +360,53 @@ def get_minimum_nodes(date, cluster_id):
     if nodes_to_return is None:
         return DEFAULT_MIN_TASK_NODES
     return nodes_to_return
+
+
+def init_emr_config(run_parallel=False):
+    cfg = ResourcesConfiguration()
+
+    def init_emr_cluster_config(c):
+        if c['Status']['State'][0:10] != 'TERMINATED':
+            out1 = run('aws emr describe-cluster --cluster-id=%s' % c['Id'], retries=1)
+            out1 = json.loads(out1)
+            cluster_details = out1['Cluster']
+            cluster = themis.model.emr_model.EmrCluster()
+            cluster.id = c['Id']
+            cluster.name = c['Name']
+            cluster.ip = 'N/A'
+            cluster.ip_public = cluster_details['MasterPublicDnsName']
+            has_ganglia = False
+            for app in out1['Cluster']['Applications']:
+                if app['Name'] == 'Hive' and not cluster.type:
+                    cluster.type = 'Hive'
+                if app['Name'][0:6] == 'Presto':
+                    cluster.type = 'Presto'
+                if app['Name'] == 'Ganglia':
+                    has_ganglia = True
+            if has_ganglia:
+                LOG.info('Getting details for EMR cluster %s' % cluster.id)
+                # get private IP address of cluster
+                for g in cluster_details['InstanceGroups']:
+                    if g['InstanceGroupType'] == 'MASTER':
+                        cmd = ('aws emr list-instances --cluster-id=%s --instance-states ' +
+                            'AWAITING_FULFILLMENT PROVISIONING BOOTSTRAPPING RUNNING') % c['Id']
+                        out2 = run(cmd, retries=6)
+                        if not out2:
+                            LOG.warning("No output for command '%s'" % cmd)
+                        out2 = json.loads(out2)
+                        for inst in out2['Instances']:
+                            if inst['InstanceGroupId'] == g['Id']:
+                                cluster.ip = inst['PrivateDnsName']
+                cfg.emr.append(cluster)
+            else:
+                LOG.info('Ignoring cluster %s (Ganglia not installed)' % cluster.id)
+
+    # load EMR resources
+    out = run('aws emr list-clusters')
+    out = json.loads(out)
+    if run_parallel:
+        common.parallelize(out['Clusters'], init_emr_cluster_config)
+    else:
+        for c in out['Clusters']:
+            init_emr_cluster_config(c)
+    return cfg

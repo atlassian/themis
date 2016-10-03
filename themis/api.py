@@ -157,7 +157,7 @@ def get_emr_clusters():
         ---
         operationId: 'getEmrClusters'
     """
-    resource_list = resources.get_resources()
+    resource_list = resources.get_resources('emr')
     result = [r.to_dict() for r in resource_list]
     return jsonify(results=result)
 
@@ -204,6 +204,20 @@ def get_emr_costs():
     result = aws_pricing.get_cluster_savings(info, baseline_nodes)
     return jsonify(results=result, baseline_nodes=baseline_nodes)
 
+
+# -----------------------------------------------
+# Kinesis specific APIs, prefixed with /kinesis/
+# -----------------------------------------------
+
+@app.route('/kinesis/streams')
+def get_kinesis_streams():
+    """ Get list of Kinesis streams
+        ---
+        operationId: 'getKinesisStreams'
+    """
+    resource_list = resources.get_resources('kinesis')
+    result = [r.to_dict() for r in resource_list]
+    return jsonify(results=result)
 
 # ------------------------
 # Addition default routes

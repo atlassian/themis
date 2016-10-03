@@ -81,8 +81,10 @@ class SystemConfiguration(ConfigObject):
 class GeneralConfiguration(ConfigObject):
     CONFIG_ITEMS = {
         'ssh_keys': 'Comma-separated list of SSH public key files to use for connecting to the clusters.',
-        # TODO move to EMR config
+        # TODO move to EMR config?
         'autoscaling_clusters': 'Comma-separated list of cluster IDs to auto-scale',
+        # TODO move to EMR config?
+        'autoscaling_kinesis_streams': 'Comma-separated list of Kinesis stream names to auto-scale',
         'scaling_loop_interval': 'Loop interval seconds',
         'monitoring_time_window': 'Time period (seconds) of historical monitoring data to consider for scaling'
     }
@@ -90,11 +92,15 @@ class GeneralConfiguration(ConfigObject):
     def __init__(self):
         self.ssh_keys = '~/.ssh/atl-ai-etl-prod.pem,~/.ssh/atl-ai-etl-dev.pem,~/.ssh/ai-etl.pem'
         self.autoscaling_clusters = ''
+        self.autoscaling_kinesis_streams = ''
         self.monitoring_time_window = 60 * 10
         self.scaling_loop_interval = LOOP_SLEEP_TIMEOUT_SECS
 
     def get_autoscaling_clusters(self):
         return re.split(r'\s*,\s*', self.autoscaling_clusters)
+
+    def get_autoscaling_kinesis_streams(self):
+        return re.split(r'\s*,\s*', self.autoscaling_kinesis_streams)
 
 
 class EmrConfiguration(ConfigObject):
@@ -123,10 +129,10 @@ class EmrClusterConfiguration(ConfigObject):
         'upscale_expr': 'Trigger cluster upscaling by the number of nodes this expression evaluates to',
         'time_based_scaling': """A JSON string that maps date regular expressions to minimum number of nodes. \
             Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". \
-            Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.:.*": 1}'}""".replace('    ', ''),
+            Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.*:.*": 1 }""".replace('    ', ''),
         'group_or_preferred_market': """Comma separated list of task instance groups and/or instance markets to \
-            increase/decrease depending on order, e.g., "g-12345,SPOT,ON_DEMAND" means to autoscale task group \
-            g-12345 if available, otherwise any SPOT group, or if necessary ON_DEMAND groups""".replace('    ', ''),
+            increase/decrease depending on order, e.g., "ig-12345,SPOT,ON_DEMAND" means to autoscale task group \
+            ig-12345 if available, otherwise any SPOT group, or if necessary ON_DEMAND groups""".replace('    ', ''),
         'baseline_nodes': 'Number of baseline nodes to use for comparing costs and calculating savings',
         'custom_domain_name': 'Custom domain name to apply to all nodes in cluster (override aws-cli result)'
     }
