@@ -2,6 +2,7 @@ import re
 import json
 import logging
 from themis import config, constants
+from themis.config import SECTION_EMR
 from themis.util.common import run, remove_lines_from_string, get_logger
 from themis.util.common import CURL_CONNECT_TIMEOUT, STATIC_INFO_CACHE_TIMEOUT, QUERY_CACHE_TIMEOUT
 from themis.util.remote import run_ssh
@@ -96,7 +97,7 @@ def get_cluster_nodes(cluster_id):
     result = result['Instances']
 
     # read domain name config
-    custom_dn = config.get_value(constants.KEY_CUSTOM_DOMAIN_NAME, section=cluster_id)
+    custom_dn = config.get_value(constants.KEY_CUSTOM_DOMAIN_NAME, section=SECTION_EMR, resource=cluster_id)
 
     i = 0
     while i < len(result):
