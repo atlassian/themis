@@ -17,6 +17,7 @@
             <tr>
               <th ts-criteria="name" id="stream_name" ts-default>Name</th>
               <th ts-criteria="shards" id="stream_shards">Shards</th>
+              <th ts-criteria="enhanced_monitoring" id="stream_enhanced_monitoring">Shard Monitoring?</th>
               <th ts-criteria="autoscale" id="stream_autoscale">Autoscale?</th>
               <th id="stream_settings">Details</th>
             </tr>
@@ -25,7 +26,12 @@
             <tr ng-repeat="stream in streams track by stream.id" ts-repeat ng-controller="kinesisAutoscaleCtrl">
               <td headers="stream_name"><a ui-sref="kinesis.details({ streamId: stream.id })">{{stream.id}}</a></td>
               <td headers="stream_shards">{{stream.shards.length}}</td>
-              <td headers="stream_autoscale"><aui-toggle checked="stream.autoscale" label="'autoscale' + stream.id"></aui-toggle></td>
+              <td headers="stream_enhanced_monitoring">
+                  <aui-toggle checked="stream.monitoring" label="'monitoring' + stream.id"></aui-toggle>
+              </td>
+              <td headers="stream_autoscale">
+                  <aui-toggle checked="stream.autoscale" label="'autoscale' + stream.id"></aui-toggle>
+              </td>
               <td headers="stream_id"><a ui-sref="kinesis.details({ streamId: stream.id, tab: 'settings' })">Settings</a></td>
             </tr>
           </tbody>

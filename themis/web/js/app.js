@@ -31,24 +31,27 @@
         });
         return configs;
       },
-      getConfigValue: function(key, configs) {
+      getConfigValue: function(key, configs, params) {
         if(configs)
           return this.extractConfigValue(key, configs);
         var self = this;
-        return this.getConfig(function(configs) {
+        return this.getConfig(params, function(configs) {
           var result = self.extractConfigValue(key, configs);
           return result;
         });
       },
-      setConfigValue: function(key, value, configs) {
+      setConfigValue: function(key, value, configs, params) {
         if(configs) {
           this.injectConfigValue(key, value, configs);
           return setConfig(configs);
         }
+        if(!params) {
+          params = {};
+        }
         var self = this;
-        return this.getConfig(function(configs) {
+        return this.getConfig(params, function(configs) {
           self.injectConfigValue(key, value, configs);
-          return self.setConfig(configs);
+          return self.setConfig(configs, params);
         });
       },
       getConfig: function(params, callback) {
@@ -204,6 +207,15 @@
         "list@kinesis": {
           templateUrl: 'views/kinesis.list.html',
           controller: 'kinesisListCtrl'
+        }
+      }
+    }).
+    state('kinesis.details', {
+      url: '/:streamId/:tab',
+      views: {
+        "details@kinesis": {
+          templateUrl: 'views/kinesis.details.html',
+          controller: 'kinesisDetailsCtrl'
         }
       }
     }).

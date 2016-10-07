@@ -13,7 +13,7 @@ from themis.constants import *
 from themis.util import common, aws_common, aws_pricing
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
 from themis.scaling import emr_scaling
-from themis.monitoring import resources, emr_monitoring, database
+from themis.monitoring import resources, emr_monitoring, kinesis_monitoring, database
 
 root_path = os.path.dirname(os.path.realpath(__file__))
 web_dir = root_path + '/web/'
@@ -218,6 +218,37 @@ def get_kinesis_streams():
     resource_list = resources.get_resources('kinesis')
     result = [r.to_dict() for r in resource_list]
     return jsonify(results=result)
+
+
+@app.route('/kinesis/state/<stream_id>')
+def get_kinesis_state(stream_id):
+    """ Get Kinesis stream state
+        ---
+        operationId: 'getKinesisState'
+        parameters:
+            - name: stream_id
+              in: path
+    """
+    app_config = config.get_config()
+    stream = resources.get_resource(SECTION_KINESIS, stream_id)
+    monitoring_interval_secs = int(app_config.general.monitoring_time_window)
+    info = kinesis_monitoring.collect_info(stream, monitoring_interval_secs=monitoring_interval_secs)
+    return jsonify(info)
+
+
+@app.route('/emr/history/<stream_id>')
+def get_kinesis_history(stream_id):
+    """ Get Kinesis stream state history
+        ---
+        operationId: 'getKinesisHistory'
+        parameters:
+            - name: 'stream_id'
+              in: path
+    """
+    info = database.history_get(stream_id, 100, service='kinesis')
+    common.remove_NaN(info)
+    return jsonify(results=info)
+
 
 # ------------------------
 # Addition default routes

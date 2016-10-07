@@ -29,6 +29,12 @@ CONFIG = None
 # maps config keys to their descriptions
 ALL_DESCRIPTIONS = {}
 
+# in-memory cache for various config values
+# CONFIG_CACHE = {}
+
+# configuration change listeners
+CONFIG_LISTENERS = set()
+
 # seconds to cache the config for
 CONFIG_CACHE_DURATION = 10
 last_config_load_time = 0
@@ -104,10 +110,6 @@ class GeneralConfiguration(ConfigObject):
 
 
 class EmrConfiguration(ConfigObject):
-    def __init__(self):
-        # self.clusters = []
-        # TODO
-        pass
 
     def get(self, *keys, **kwargs):
         result = super(EmrConfiguration, self).get(*keys, **kwargs)
@@ -156,8 +158,28 @@ class EmrClusterConfiguration(ConfigObject):
 class KinesisConfiguration(ConfigObject):
     CONFIG_ITEMS = {}
 
+    def get(self, *keys, **kwargs):
+        result = super(KinesisConfiguration, self).get(*keys, **kwargs)
+        if result is None and len(keys) == 1:
+            # return default config
+            result = KinesisStreamConfiguration()
+            self.set(keys[0], result)
+        return result
+
+    def set(self, key, value):
+        if isinstance(value, dict):
+            value = KinesisStreamConfiguration.from_dict(value)
+        return super(KinesisConfiguration, self).set(key, value)
+
+
+class KinesisStreamConfiguration(ConfigObject):
+    CONFIG_ITEMS = {
+        'enable_enhanced_monitoring': """Enable enhanced monitoring. If the value is "true", \
+            enables per-shard monitoring with ShardLevelMetrics=ALL"""
+    }
+
     def __init__(self):
-        self.streams = []
+        self.enable_enhanced_monitoring = 'false'
 
 
 ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration]
@@ -201,14 +223,24 @@ def get_config(force_load=False):
 
 
 def write(config, section=SECTION_GLOBAL, resource=None):
+    # invalidate_cache(section)
     app_config = get_config(force_load=True)
     if resource:
         target_config = app_config.get(section)
+        old_config = target_config.get(resource)
         target_config.set(resource, config)
+        notify_listeners(old_config, config, section=section, resource=resource)
     else:
+        old_config = app_config.get(section)
         app_config.set(section, config)
+        notify_listeners(old_config, config, section=section)
     common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
     return config
+
+
+def notify_listeners(old_config, new_config, section, resource=None):
+    for listener in CONFIG_LISTENERS:
+        listener(old_config=old_config, new_config=new_config, section=section, resource=resource)
 
 
 def get_value(key, config=None, default=None, section=SECTION_GLOBAL, resource=None):
@@ -218,3 +250,9 @@ def get_value(key, config=None, default=None, section=SECTION_GLOBAL, resource=N
     if resource:
         keys = (section, resource, key)
     return config.get(*keys, default=default)
+
+
+# def invalidate_cache(section):
+#     if not section:
+#         section = SECTION_GLOBAL
+#     CONFIG_CACHE[section] = {}

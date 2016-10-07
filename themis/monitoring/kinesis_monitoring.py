@@ -1,4 +1,5 @@
 import json
+from themis import config
 import themis.model.resources_model
 import themis.model.kinesis_model
 from themis.model.aws_model import *
@@ -7,6 +8,25 @@ from themis.util.common import *
 
 # logger
 LOG = get_logger(__name__)
+
+
+def update_config(old_config, new_config, section, resource=None):
+    if section != SECTION_KINESIS:
+        return
+    if resource:
+        key = 'enable_enhanced_monitoring'
+        old_value = old_config.enable_enhanced_monitoring
+        new_value = new_config['enable_enhanced_monitoring']
+        if new_value != old_value:
+            if new_value:
+                # enable monitoring
+                enable_shard_monitoring(resource)
+            else:
+                # disable monitoring
+                disable_shard_monitoring(resource)
+
+
+config.CONFIG_LISTENERS.add(update_config)
 
 
 def get_cloudwatch_metrics(metric, namespace, dimensions, time_window=600, period=60):
@@ -20,15 +40,32 @@ def get_cloudwatch_metrics(metric, namespace, dimensions, time_window=600, perio
     return datapoints
 
 
+def enable_shard_monitoring(stream, metrics='ALL'):
+    if not isinstance(stream, basestring):
+        stream = stream.id
+    cmd = 'aws kinesis enable-enhanced-monitoring --stream-name %s --shard-level-metrics %s' % (stream, metrics)
+    run(cmd)
+
+
+def disable_shard_monitoring(stream, metrics='ALL'):
+    if not isinstance(stream, basestring):
+        stream = stream.id
+    cmd = 'aws kinesis disable-enhanced-monitoring --stream-name %s --shard-level-metrics %s' % (stream, metrics)
+    run(cmd)
+
+
 def get_kinesis_cloudwatch_metrics(stream, metric):
     dimensions = 'Name=StreamName,Value=%s' % stream.id
     return get_cloudwatch_metrics(metric=metric, namespace='AWS/Kinesis', dimensions=dimensions)
 
 
-def collect_info(stream):
-    print('collect_info')
+def collect_info(stream, monitoring_interval_secs=600):
     result = {}
+    shards = result['shards'] = []
     datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric='IncomingBytes')
+    for shard in stream.shards:
+        shard = shard.to_dict()
+        shards.append(shard)
     result['datapoints'] = datapoints
     return result
 

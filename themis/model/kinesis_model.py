@@ -8,6 +8,7 @@ class KinesisStream(Scalable, Monitorable):
         super(KinesisStream, self).__init__(id)
         self.monitoring_data = {}
         self.shards = []
+        self.enhanced_monitoring = []
 
     def fetch_data(self):
         if self.needs_scaling():
@@ -22,6 +23,13 @@ class KinesisStream(Scalable, Monitorable):
     def perform_scaling(self, params=None):
         print('Kinesis perform_scaling')
         # TODO
+
+    @classmethod
+    def from_json(cls, j):
+        result = KinesisStream(j.get('id'))
+        result.monitoring_data = j.get('monitoring_data') or {}
+        result.shards = KinesisShard.from_json_list(j.get('shards'))
+        return result
 
 
 class KinesisShard(Monitorable):

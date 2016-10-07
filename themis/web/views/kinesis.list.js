@@ -8,7 +8,7 @@
     appConfig.section = 'general';
 
     $scope.$watch('stream.autoscale', function(newVal, oldVal) {
-      if(typeof(oldVal) != "undefined") {
+      if(typeof(oldVal) != 'undefined') {
         appConfig.getConfigValue('autoscaling_kinesis_streams').then(function(autoscaleStreams) {
         	autoscaleStreams = autoscaleStreams.split(/\s*,\s*/);
         	appUtils.arrayRemove(autoscaleStreams, $scope.stream.id);
@@ -22,6 +22,20 @@
         });
       }
     });
+
+    $scope.$watch('stream.monitoring', function(newVal, oldVal) {
+      if(typeof(oldVal) != 'undefined') {
+        var params = {
+          section: 'kinesis',
+          resource: $scope.stream.id
+        };
+        newVal = '' + newVal;
+        appConfig.setConfigValue('enable_enhanced_monitoring', newVal, null, params).then(function(config) {
+          console.log('Successfully updated configuration.');
+        });
+      }
+    });
+
   });
 
   app.controller('kinesisListCtrl', function($scope, restClient, appConfig) {
@@ -32,10 +46,12 @@
     var loadStreamData = function(data) {
       $scope.$apply(function() {
         $scope.streams = data.results;
-        appConfig.getConfigValue('autoscaling_kinesis_streams').then(function(autoscaleStreams) {
+        appConfig.getConfigValue('autoscaling_kinesis_streams')
+        .then(function(autoscaleStreams) {
           autoscaleStreams = autoscaleStreams.split(/\s*,\s*/);
           $scope.streams.forEach(function(stream) {
             stream.autoscale = autoscaleStreams.indexOf(stream.id) >= 0;
+            stream.monitoring = stream.enhanced_monitoring.length > 0;
           });
           $scope.$apply();
         });

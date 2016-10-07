@@ -1,0 +1,160 @@
+<section id="content">
+<div class="aui-page-panel">
+  <div class="aui-page-panel-inner">
+    <section class="aui-page-panel-content">
+
+      <div class="aui-tabs horizontal-tabs">
+        <ul class="tabs-menu">
+          <li class="menu-item" ng-class="{'active-tab' : active_tab==1}">
+              <a ng-click="active_tab=1">Current Load</a>
+          </li>
+          <li class="menu-item" ng-class="{'active-tab' : active_tab==2}">
+              <a ng-click="active_tab=2">History</a>
+          </li>
+          <li class="menu-item" ng-class="{'active-tab' : active_tab==3}">
+              <a ng-click="active_tab=3">Costs</a>
+          </li>
+          <li class="menu-item" ng-class="{'active-tab' : active_tab==4}">
+              <a ng-click="active_tab=4">Settings</a>
+          </li>
+        </ul>
+        <div class="tabs-pane" ng-class="{'active-pane' : active_tab==1}" id="tabs-first" style="padding: 20px;">
+
+          <div ng-hide="state.loading">
+            <button class="aui-button aui-button-primary" ng-click="refresh()">Refresh</button>
+            <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
+              <thead>
+                <tr>
+                  <th ts-criteria="id" id="shard_id">Name</th>
+                  <th ts-criteria="throughput" id="throughput">Throughput</th>
+                  <th ts-criteria="actions" id="actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="value in state.data.shards track by value.id" ts-repeat>
+                  <td headers="id">{{value.id}}</td>
+                  <td headers="throughput">{{value.throughput}}</td>
+                  <td headers="actions">n/a</td>
+                </tr>
+                <tr class="summary" ng-hide="!state.data.nodes_list.length">
+                  <td headers="host_name">Total</td>
+                  <td>Σ {{state.data.tasknodes.count.nodes}} TASK</td>
+                  <td></td>
+                  <td></td>
+                  <td></td>
+                  <td ng-hide="!state.data.is_presto"></td>
+                  <td headers="load_cpu">Ø {{format_percent(state.data.tasknodes.average.cpu)}}</td>
+                  <td headers="load_mem">Ø {{format_percent(state.data.tasknodes.average.mem)}}</td>
+                  <td headers="queries">{{state.data.allnodes.sum.queries}}</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Note: Table may contain metrics that are cached for a short period of time.
+            </p>
+          </div>
+          <div class="aui panel-centered" ng-show="state.loading">
+            <img src="img/loading.gif" alt="loading"/> loading data ...
+          </div>
+
+        </div>
+        <div class="tabs-pane" ng-class="{'active-pane' : active_tab==2}" id="tabs-second" style="padding: 20px;">
+
+          <div ng-hide="history.loading">
+            <button class="aui-button aui-button-primary" ng-click="refresh()">Refresh</button>
+            <h2>Historical States and Actions</h2>
+            <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
+              <thead>
+                <tr>
+                  <th ts-criteria="timestamp" id="hist_timestamp" ts-default="descending">Time</th>
+                  <th ts-criteria="state.tasknodes.count.nodes" id="hist_nodes">Number of Nodes</th>
+                  <th ts-criteria="state.tasknodes.average.cpu" id="hist_cpu">Ø Task Node CPU</th>
+                  <th ts-criteria="state.tasknodes.average.mem" id="hist_mem">Ø Task Node Memory</th>
+                  <th ts-criteria="state.allnodes.sum.queries" id="hist_queries">Total Queries</th>
+                  <th ts-criteria="action" id="hist_action">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="value in history.data track by value.timestamp" ts-repeat>
+                  <td headers="hist_timestamp">{{format_datetime(value.timestamp)}}</td>
+                  <td headers="hist_nodes">{{value.state.tasknodes.count.nodes}}</td>
+                  <td headers="hist_cpu">{{format_percent(value.state.tasknodes.average.cpu)}}</td>
+                  <td headers="hist_mem">{{format_percent(value.state.tasknodes.average.mem)}}</td>
+                  <td headers="hist_queries">{{value.state.allnodes.sum.queries}}</td>
+                  <td headers="hist_action">{{value.action}}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="aui panel-centered" ng-show="history.loading">
+            <img src="img/loading.gif" alt="loading"/> loading data ...
+          </div>
+
+        </div>
+        <div class="tabs-pane" ng-class="{'active-pane' : active_tab==3}" id="tabs-third" style="padding: 20px;">
+
+          <div ng-hide="history.loading">
+            <button class="aui-button aui-button-primary" ng-click="refresh()">Refresh</button>
+            <h2>Costs Overview</h2>
+            <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
+              <thead>
+                <tr>
+                  <th ts-criteria="id" id="cost_inst_id" ts-default="descending">Instance ID</th>
+                  <th ts-criteria="start" id="cost_inst_start">Start Time</th>
+                  <th ts-criteria="end" id="cost_inst_end">Terminate Time</th>
+                  <th ts-criteria="hours" id="cost_inst_h">Hours</th>
+                  <th ts-criteria="costs" id="cost_inst_costs">Costs</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="value in savings.instances track by value.iid" ts-repeat>
+                  <td headers="cost_inst_id">{{value.iid}}</td>
+                  <td headers="cost_inst_start">{{format_datetime(value.start * 1000)}}</td>
+                  <td headers="cost_inst_end">{{format_datetime(value.end * 1000)}}</td>
+                  <td headers="cost_inst_h">{{value.hours}} ({{format_number((value.end-value.start) / 60.0 / 60.0)}})</td>
+                  <td headers="cost_inst_costs">{{format_number(value.costs)}}</td>
+                </tr>
+                <tr class="summary" ng-hide="!savings.instances">
+                  <td headers="cost_inst_id">Total</td>
+                  <td headers="cost_inst_start">Σ {{savings.instances.length}} instances</td>
+                  <td headers="cost_inst_end"></td>
+                  <td headers="cost_inst_h">{{savings.hours}}</td>
+                  <td headers="cost_inst_costs">{{format_number(savings.costs)}}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="aui panel-centered" ng-show="history.loading">
+            <img src="img/loading.gif" alt="loading"/> loading data ...
+          </div>
+
+        </div>
+        <div class="tabs-pane" ng-class="{'active-pane' : active_tab==4}" id="tabs-fourth" style="padding: 20px;">
+          <form class="aui">
+            <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
+              <thead>
+                <tr>
+                  <th ts-criteria="key" id="config_key" ts-default>Key</th>
+                  <th ts-criteria="load.cpu" id="config_descr">Description</th>
+                  <th ts-criteria="value" id="config_value" style="width: 40%">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr ng-repeat="entry in settings.config track by entry.key" ts-repeat>
+                  <td headers="config_key">{{entry.key}}</td>
+                  <td headers="config_descr">{{entry.description}}</td>
+                  <td headers="config_value"><input class="text long-field" ng-model="entry.value" style="width: 100%"/></td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="margin-top: 20px">
+              <button class="aui-button aui-button-primary" ng-click="saveConfig()">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</section>

@@ -1,5 +1,5 @@
-from themis.monitoring import emr_monitoring
-from themis.scaling import emr_scaling
+import themis.monitoring.emr_monitoring
+import themis.scaling.emr_scaling
 from themis.util import aws_common
 from themis import config
 from themis.model.aws_model import *
@@ -15,7 +15,7 @@ class EmrCluster(Scalable, Monitorable):
 
     def fetch_data(self):
         if self.needs_scaling():
-            self.monitoring_data = emr_monitoring.collect_info(self)
+            self.monitoring_data = themis.monitoring.emr_monitoring.collect_info(self)
         return self.monitoring_data
 
     def needs_scaling(self, params=None):
@@ -24,7 +24,7 @@ class EmrCluster(Scalable, Monitorable):
         return self.id in cluster_ids
 
     def perform_scaling(self, params=None):
-        emr_scaling.perform_scaling(self)
+        themis.scaling.emr_scaling.perform_scaling(self)
 
 
 class EmrClusterType(object):
