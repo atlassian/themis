@@ -9,9 +9,8 @@ from themis import config
 from themis.config import *
 from themis.constants import *
 from themis.util import common, aws_common, aws_pricing
-from themis.monitoring import emr_monitoring
+from themis.monitoring import emr_monitoring, database
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
-
 
 # logger
 LOG = common.get_logger(__name__)
@@ -21,11 +20,6 @@ def sort_nodes_by_load(nodes, weight_mem=1, weight_cpu=2, desc=False):
     return sorted(nodes, reverse=desc, key=lambda node: (
         float((node['load']['mem'] if 'mem' in node['load'] else 0) * weight_mem) +
         float((node['load']['cpu'] if 'cpu' in node['load'] else 0) * weight_cpu)))
-
-
-def get_autoscaling_clusters():
-    cfg = config.get_config()
-    return re.split(r'\s*,\s*', cfg.general.autoscaling_clusters)
 
 
 def get_node_groups_or_preferred_markets(cluster_id, info=None, config=None):
@@ -46,21 +40,21 @@ def get_node_groups_or_preferred_markets(cluster_id, info=None, config=None):
         # unable to parse as expression, continue below...
         pass
     # return verbatim strings, split by comma
-    return re.split("\s*,\s*", preferred)
+    result = [item for item in re.split("\s*,\s*", preferred) if item]
+    return result
 
 
 def get_termination_candidates(info, config=None):
     result = []
     cluster_id = info['cluster_id']
-    preferred = get_node_groups_or_preferred_markets(cluster_id, info=info, config=config)
-    for market in preferred:
-        if market:
-            cand = get_termination_candidates_for_market(info, market=market)
-            result.extend(cand)
+    preferred_list = get_node_groups_or_preferred_markets(cluster_id, info=info, config=config)
+    for preferred in preferred_list:
+        cand = get_termination_candidates_for_market_or_group(info, preferred=preferred)
+        result.extend(cand)
     return result
 
 
-def get_termination_candidates_for_market(info, market):
+def get_termination_candidates_for_market_or_group(info, preferred):
     candidates = []
     cluster_id = info['cluster_id']
     for key, details in info['nodes'].iteritems():
@@ -70,7 +64,7 @@ def get_termination_candidates_for_market(info, market):
             # terminate only nodes with 0 queries running
             if details['queries'] == 0:
                 group_details = aws_common.get_instance_group_details(cluster_id, details['gid'])
-                if group_details['Market'] == market:
+                if preferred in [group_details['Market'], group_details['id']]:
                     candidates.append(details)
     return candidates
 
@@ -87,6 +81,10 @@ def get_nodes_to_terminate(info, config=None):
 
     candidates = get_termination_candidates(info, config=config)
     candidates = sort_nodes_by_load(candidates, desc=False)
+
+    if len(candidates) < num_downsize:
+        LOG.warning('Not enough candidate nodes to perform downsize operation: %s < %s' %
+            (len(candidates), num_downsize))
 
     result = []
     if candidates:
@@ -142,7 +140,7 @@ def select_tasknode_group(tasknodes_groups, cluster_id, info=None):
     preferred_list = get_node_groups_or_preferred_markets(cluster_id, info=info)
     for preferred in preferred_list:
         for group in tasknodes_groups:
-            if group['Market'] == preferred or group['id'] == preferred:
+            if preferred in [group['Market'], group['id']]:
                 return group
     raise Exception("Could not select task node instance group for preferred market %s: %s" %
             (preferred_list, tasknodes_groups))
@@ -155,7 +153,7 @@ def perform_scaling(cluster):
     if info:
         action = 'N/A'
         # Make sure we don't change clusters that are not configured
-        if cluster.id in get_autoscaling_clusters():
+        if cluster.id in app_config.general.get_autoscaling_clusters():
             try:
                 nodes_to_terminate = get_nodes_to_terminate(info)
                 if len(nodes_to_terminate) > 0:
@@ -179,4 +177,4 @@ def perform_scaling(cluster):
             # clean up and terminate instances whose nodes are already in inactive state
             aws_common.terminate_inactive_nodes(cluster, info)
         # store the state for future reference
-        emr_monitoring.history_add(cluster.id, info, action)
+        database.history_add(cluster.id, info, action)

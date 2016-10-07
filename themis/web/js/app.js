@@ -31,24 +31,27 @@
         });
         return configs;
       },
-      getConfigValue: function(key, configs) {
+      getConfigValue: function(key, configs, params) {
         if(configs)
           return this.extractConfigValue(key, configs);
         var self = this;
-        return this.getConfig(function(configs) {
+        return this.getConfig(params, function(configs) {
           var result = self.extractConfigValue(key, configs);
           return result;
         });
       },
-      setConfigValue: function(key, value, configs) {
+      setConfigValue: function(key, value, configs, params) {
         if(configs) {
           this.injectConfigValue(key, value, configs);
           return setConfig(configs);
         }
+        if(!params) {
+          params = {};
+        }
         var self = this;
-        return this.getConfig(function(configs) {
+        return this.getConfig(params, function(configs) {
           self.injectConfigValue(key, value, configs);
-          return self.setConfig(configs);
+          return self.setConfig(configs, params);
         });
       },
       getConfig: function(params, callback) {
@@ -102,6 +105,69 @@
     };
   });
 
+  app.factory('appUtils', function() {
+    return {
+      format_number: function(value, digits_after_comma=2) {
+        return parseFloat('' + value).toFixed(digits_after_comma);
+      },
+
+      format_percent: function(value) {
+        return this.format_number(parseFloat('' + value) * 100.0) + " %"
+      },
+
+      format_datetime: function(ms) {
+        var a = new Date(parseInt(ms));
+        //var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        //var month = months[a.getMonth()];
+        var month = a.getMonth() + 1;
+        month = month < 10 ? '0' + month : month;
+        var year = a.getFullYear();
+        var date = a.getDate() < 10 ? '0' + a.getDate() : a.getDate();
+        var hour = a.getHours() < 10 ? '0' + a.getHours() : a.getHours();
+        var min = a.getMinutes() < 10 ? '0' + a.getMinutes() : a.getMinutes();
+        var sec = a.getSeconds() < 10 ? '0' + a.getSeconds() : a.getSeconds();
+        var time = year + '-' + month + '-' + date + ' ' + hour + ':' + min + ':' + sec ;
+        return time;
+      },
+
+      format_duration: function(seconds) {
+        var interval = Math.floor(seconds / 31536000);
+        if (interval > 1) {
+            return interval + " years";
+        }
+        interval = Math.floor(seconds / 2592000);
+        if (interval > 1) {
+            return interval + " months";
+        }
+        interval = Math.floor(seconds / 86400);
+        if (interval > 1) {
+            return interval + " days";
+        }
+        interval = Math.floor(seconds / 3600);
+        if (interval > 1) {
+            return interval + " hours";
+        }
+        interval = Math.floor(seconds / 60);
+        if (interval > 1) {
+            return interval + " minutes";
+        }
+        return Math.floor(seconds) + " seconds";
+      },
+
+      format_currency: function(amount, currency='USD', digits_after_comma=2) {
+        return currency + ' ' + this.format_number(amount, digits_after_comma);
+      },
+
+      arrayRemove: function(array, el) {
+        for(var i = array.length - 1; i >= 0; i--) {
+          if(array[i] === el) {
+             array.splice(i, 1);
+          }
+        }
+      }
+    }
+  });
+
   app.config(function($stateProvider, $urlRouterProvider) {
 
     $stateProvider.
@@ -141,6 +207,15 @@
         "list@kinesis": {
           templateUrl: 'views/kinesis.list.html',
           controller: 'kinesisListCtrl'
+        }
+      }
+    }).
+    state('kinesis.details', {
+      url: '/:streamId/:tab',
+      views: {
+        "details@kinesis": {
+          templateUrl: 'views/kinesis.details.html',
+          controller: 'kinesisDetailsCtrl'
         }
       }
     }).

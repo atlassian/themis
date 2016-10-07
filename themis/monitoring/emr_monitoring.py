@@ -4,7 +4,6 @@ import os
 import json
 import math
 import time
-import sqlite3
 import themis
 import traceback
 from datetime import timedelta, datetime
@@ -14,13 +13,11 @@ from themis.util import aws_common, common, expr
 from themis.util.common import *
 from themis.config import SECTION_EMR
 from themis.util.remote import run_ssh
+from themis.model.resources_model import *
+import themis.model.emr_model
 
 # logger
 LOG = get_logger(__name__)
-
-# global DB connection
-db_connection = None
-DB_FILE_NAME = 'monitoring.data.db'
 
 # get data from the last 10 minutes
 MONITORING_INTERVAL_SECS = 60 * 10
@@ -52,7 +49,7 @@ def get_time_duration(datapoints):
     return end - start
 
 
-def get_node_load_part(cluster, host, type, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+def get_ganglia_datapoints(cluster, host, type, monitoring_interval_secs):
     diff_secs = monitoring_interval_secs
     format = "%m/%d/%Y %H:%M"
     start_time, end_time = get_start_and_end(diff_secs, format)
@@ -68,44 +65,49 @@ def get_node_load_part(cluster, host, type, monitoring_interval_secs=MONITORING_
             cmd = "curl --connect-timeout %s '%s' 2> /dev/null" % (CURL_CONNECT_TIMEOUT, url)
             result = run(cmd, GANGLIA_CACHE_TIMEOUT)
             result = json.loads(result)
+            return result
         except Exception, e:
             error = e
             # try next IP
+    raise error
 
-    if not result:
-        raise error
 
-    mem_total = 0.0
-    mem_free = 0.0
-    if not result:
+def get_node_load_part(cluster, host, type, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+    ganglia_data = get_ganglia_datapoints(cluster, host, type, monitoring_interval_secs)
+    if not ganglia_data:
         return float('NaN')
-    for curve in result:
+    curves_map = {}
+    datapoints_map = {}
+
+    for curve in ganglia_data:
         datapoints = curve['datapoints']
-        if curve['ds_name'] == 'bmem_total':
-            remove_nan(datapoints)
-            rev_curve = array_reverse(datapoints)
-            if len(rev_curve) >= 2:
-                mem_total = integrate.simps(rev_curve[0], rev_curve[1])
-        if curve['ds_name'] == 'bmem_free':
-            remove_nan(datapoints)
-            rev_curve = array_reverse(datapoints)
-            if len(rev_curve) >= 2:
-                mem_free = integrate.simps(rev_curve[0], rev_curve[1])
-        if curve['ds_name'] == 'cpu_idle':
-            remove_nan(datapoints)
-            rev_curve = array_reverse(datapoints)
-            integrated = 0
-            if len(rev_curve) >= 2:
-                integrated = integrate.simps(rev_curve[0], rev_curve[1])
-            time_duration = get_time_duration(datapoints)
-            total = time_duration * 100.0
-            percent = 1.0 - (integrated / total)
-            if type == 'cpu':
-                return percent
+        remove_nan(datapoints)
+        rev_curve = array_reverse(datapoints)
+        curve_ds_name = curve['ds_name']
+        curves_map[curve_ds_name] = rev_curve
+        datapoints_map[curve_ds_name] = datapoints
+
+    if type == 'cpu':
+        curve_cpu_idle = curves_map['cpu_idle']
+        if len(curve_cpu_idle) < 2:
+            return float('NaN')
+        integrated = integrate.simps(curve_cpu_idle[0], curve_cpu_idle[1])
+        time_duration = get_time_duration(datapoints_map['cpu_idle'])
+        total = time_duration * 100.0
+        percent = 1.0 - (integrated / total)
+        return percent
+
     if type == 'mem':
+        curve_bmem_total = curves_map['bmem_total']
+        curve_bmem_free = curves_map['bmem_free']
+        if len(curve_bmem_total) < 2:
+            return float('NaN')
+        mem_total = integrate.simps(curve_bmem_total[0], curve_bmem_total[1])
+        mem_free = integrate.simps(curve_bmem_free[0], curve_bmem_free[1])
         if mem_total == 0:
             return float('NaN')
         return 1.0 - (mem_free / mem_total)
+
     return float('NaN')
 
 
@@ -270,13 +272,10 @@ def collect_info(cluster, nodes=None, config=None,
         for node in nodes_list:
             host = node['host']
             result['nodes'][host] = {}
-            result['nodes'][host]['type'] = node['type']
-            result['nodes'][host]['state'] = node['state']
-            result['nodes'][host]['cid'] = node['cid']
-            result['nodes'][host]['iid'] = node['iid']
-            result['nodes'][host]['gid'] = node['gid']
             result['nodes'][host]['queries'] = 0
             result['nodes'][host]['market'] = node['market']
+            for attr in ['type', 'state', 'cid', 'iid', 'gid']:
+                result['nodes'][host][attr] = node[attr]
         try:
             queries = get_node_queries(cluster)
             for host in queries:
@@ -311,23 +310,6 @@ def collect_info(cluster, nodes=None, config=None,
         return {}
 
 
-def history_get_db():
-    local = threading.local()
-    db_connection = None
-    try:
-        db_connection = local.db_connection
-    except AttributeError:
-        pass
-    if not db_connection:
-        db_connection = sqlite3.connect(DB_FILE_NAME)
-        local.db_connection = db_connection
-        c = db_connection.cursor()
-        c.execute('CREATE TABLE IF NOT EXISTS states ' +
-            '(timestamp text unique, cluster text, state text, action text)')
-        db_connection.commit()
-    return db_connection
-
-
 def execute_dsl_string(dsl_str, context, config=None):
     expr_context = expr.ExprContext(context)
     allnodes = expr_context.allnodes
@@ -344,42 +326,6 @@ def execute_dsl_string(dsl_str, context, config=None):
         now = now_override
 
     return eval(dsl_str)
-
-
-def history_add(cluster, state, action):
-    nodes = state['nodes']
-    state['nodes'] = {}
-    del state['nodes_list']
-    state['groups'] = {}
-    for key, val in nodes.iteritems():
-        instance_id = val['iid']
-        group_id = val['gid']
-        if group_id not in state['groups']:
-            state['groups'][group_id] = {'instances': []}
-        state['groups'][group_id]['instances'].append({
-            'iid': val['iid']
-            # TODO add more relevant data to persist
-        })
-    state = json.dumps(state)
-    conn = history_get_db()
-    c = conn.cursor()
-    ms = time.time() * 1000.0
-    c.execute("INSERT INTO states(timestamp,cluster,state,action) " +
-        "VALUES (?,?,?,?)", (ms, cluster, state, action))
-    conn.commit()
-
-
-def history_get(cluster, limit=100):
-    conn = history_get_db()
-    c = conn.cursor()
-    c.execute("SELECT * FROM states WHERE cluster=? " +
-        "ORDER BY timestamp DESC LIMIT ?", (cluster, limit))
-    result = [dict((c.description[i][0], value)
-                   for i, value in enumerate(row)) for row in c.fetchall()]
-    for entry in result:
-        if 'state' in entry:
-            entry['state'] = json.loads(entry['state'])
-    return result
 
 
 def get_time_based_scaling_config(cluster_id, config=None):
@@ -414,3 +360,53 @@ def get_minimum_nodes(date, cluster_id):
     if nodes_to_return is None:
         return DEFAULT_MIN_TASK_NODES
     return nodes_to_return
+
+
+def init_emr_config(run_parallel=False):
+    cfg = ResourcesConfiguration()
+
+    def init_emr_cluster_config(c):
+        if c['Status']['State'][0:10] != 'TERMINATED':
+            out1 = run('aws emr describe-cluster --cluster-id=%s' % c['Id'], retries=1)
+            out1 = json.loads(out1)
+            cluster_details = out1['Cluster']
+            cluster = themis.model.emr_model.EmrCluster()
+            cluster.id = c['Id']
+            cluster.name = c['Name']
+            cluster.ip = 'N/A'
+            cluster.ip_public = cluster_details['MasterPublicDnsName']
+            has_ganglia = False
+            for app in out1['Cluster']['Applications']:
+                if app['Name'] == 'Hive' and not cluster.type:
+                    cluster.type = 'Hive'
+                if app['Name'][0:6] == 'Presto':
+                    cluster.type = 'Presto'
+                if app['Name'] == 'Ganglia':
+                    has_ganglia = True
+            if has_ganglia:
+                LOG.info('Getting details for EMR cluster %s' % cluster.id)
+                # get private IP address of cluster
+                for g in cluster_details['InstanceGroups']:
+                    if g['InstanceGroupType'] == 'MASTER':
+                        cmd = ('aws emr list-instances --cluster-id=%s --instance-states ' +
+                            'AWAITING_FULFILLMENT PROVISIONING BOOTSTRAPPING RUNNING') % c['Id']
+                        out2 = run(cmd, retries=6)
+                        if not out2:
+                            LOG.warning("No output for command '%s'" % cmd)
+                        out2 = json.loads(out2)
+                        for inst in out2['Instances']:
+                            if inst['InstanceGroupId'] == g['Id']:
+                                cluster.ip = inst['PrivateDnsName']
+                cfg.emr.append(cluster)
+            else:
+                LOG.info('Ignoring cluster %s (Ganglia not installed)' % cluster.id)
+
+    # load EMR resources
+    out = run('aws emr list-clusters')
+    out = json.loads(out)
+    if run_parallel:
+        common.parallelize(out['Clusters'], init_emr_cluster_config)
+    else:
+        for c in out['Clusters']:
+            init_emr_cluster_config(c)
+    return cfg

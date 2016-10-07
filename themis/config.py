@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import threading
 from themis.util import common
 from themis.util.common import run, now
@@ -27,6 +28,12 @@ CONFIG = None
 
 # maps config keys to their descriptions
 ALL_DESCRIPTIONS = {}
+
+# in-memory cache for various config values
+# CONFIG_CACHE = {}
+
+# configuration change listeners
+CONFIG_LISTENERS = set()
 
 # seconds to cache the config for
 CONFIG_CACHE_DURATION = 10
@@ -80,8 +87,10 @@ class SystemConfiguration(ConfigObject):
 class GeneralConfiguration(ConfigObject):
     CONFIG_ITEMS = {
         'ssh_keys': 'Comma-separated list of SSH public key files to use for connecting to the clusters.',
-        # TODO move to EMR config
+        # TODO move to EMR config?
         'autoscaling_clusters': 'Comma-separated list of cluster IDs to auto-scale',
+        # TODO move to EMR config?
+        'autoscaling_kinesis_streams': 'Comma-separated list of Kinesis stream names to auto-scale',
         'scaling_loop_interval': 'Loop interval seconds',
         'monitoring_time_window': 'Time period (seconds) of historical monitoring data to consider for scaling'
     }
@@ -89,15 +98,18 @@ class GeneralConfiguration(ConfigObject):
     def __init__(self):
         self.ssh_keys = '~/.ssh/atl-ai-etl-prod.pem,~/.ssh/atl-ai-etl-dev.pem,~/.ssh/ai-etl.pem'
         self.autoscaling_clusters = ''
+        self.autoscaling_kinesis_streams = ''
         self.monitoring_time_window = 60 * 10
         self.scaling_loop_interval = LOOP_SLEEP_TIMEOUT_SECS
 
+    def get_autoscaling_clusters(self):
+        return re.split(r'\s*,\s*', self.autoscaling_clusters)
+
+    def get_autoscaling_kinesis_streams(self):
+        return re.split(r'\s*,\s*', self.autoscaling_kinesis_streams)
+
 
 class EmrConfiguration(ConfigObject):
-    def __init__(self):
-        # self.clusters = []
-        # TODO
-        pass
 
     def get(self, *keys, **kwargs):
         result = super(EmrConfiguration, self).get(*keys, **kwargs)
@@ -119,10 +131,10 @@ class EmrClusterConfiguration(ConfigObject):
         'upscale_expr': 'Trigger cluster upscaling by the number of nodes this expression evaluates to',
         'time_based_scaling': """A JSON string that maps date regular expressions to minimum number of nodes. \
             Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". \
-            Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.:.*": 1}'}""".replace('    ', ''),
+            Example config: { "(Mon|Tue|Wed|Thu|Fri).01:.*:.*": 1 }""".replace('    ', ''),
         'group_or_preferred_market': """Comma separated list of task instance groups and/or instance markets to \
-            increase/decrease depending on order, e.g., "g-12345,SPOT,ON_DEMAND" means to autoscale task group \
-            g-12345 if available, otherwise any SPOT group, or if necessary ON_DEMAND groups""".replace('    ', ''),
+            increase/decrease depending on order, e.g., "ig-12345,SPOT,ON_DEMAND" means to autoscale task group \
+            ig-12345 if available, otherwise any SPOT group, or if necessary ON_DEMAND groups""".replace('    ', ''),
         'baseline_nodes': 'Number of baseline nodes to use for comparing costs and calculating savings',
         'custom_domain_name': 'Custom domain name to apply to all nodes in cluster (override aws-cli result)'
     }
@@ -146,8 +158,28 @@ class EmrClusterConfiguration(ConfigObject):
 class KinesisConfiguration(ConfigObject):
     CONFIG_ITEMS = {}
 
+    def get(self, *keys, **kwargs):
+        result = super(KinesisConfiguration, self).get(*keys, **kwargs)
+        if result is None and len(keys) == 1:
+            # return default config
+            result = KinesisStreamConfiguration()
+            self.set(keys[0], result)
+        return result
+
+    def set(self, key, value):
+        if isinstance(value, dict):
+            value = KinesisStreamConfiguration.from_dict(value)
+        return super(KinesisConfiguration, self).set(key, value)
+
+
+class KinesisStreamConfiguration(ConfigObject):
+    CONFIG_ITEMS = {
+        'enable_enhanced_monitoring': """Enable enhanced monitoring. If the value is "true", \
+            enables per-shard monitoring with ShardLevelMetrics=ALL"""
+    }
+
     def __init__(self):
-        self.streams = []
+        self.enable_enhanced_monitoring = 'false'
 
 
 ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration]
@@ -191,14 +223,24 @@ def get_config(force_load=False):
 
 
 def write(config, section=SECTION_GLOBAL, resource=None):
+    # invalidate_cache(section)
     app_config = get_config(force_load=True)
     if resource:
         target_config = app_config.get(section)
+        old_config = target_config.get(resource)
         target_config.set(resource, config)
+        notify_listeners(old_config, config, section=section, resource=resource)
     else:
+        old_config = app_config.get(section)
         app_config.set(section, config)
+        notify_listeners(old_config, config, section=section)
     common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
     return config
+
+
+def notify_listeners(old_config, new_config, section, resource=None):
+    for listener in CONFIG_LISTENERS:
+        listener(old_config=old_config, new_config=new_config, section=section, resource=resource)
 
 
 def get_value(key, config=None, default=None, section=SECTION_GLOBAL, resource=None):
@@ -208,3 +250,9 @@ def get_value(key, config=None, default=None, section=SECTION_GLOBAL, resource=N
     if resource:
         keys = (section, resource, key)
     return config.get(*keys, default=default)
+
+
+# def invalidate_cache(section):
+#     if not section:
+#         section = SECTION_GLOBAL
+#     CONFIG_CACHE[section] = {}

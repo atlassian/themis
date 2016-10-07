@@ -233,13 +233,14 @@ def parallelize(array_or_dict, func):
         t.join()
 
 
-def get_start_and_end(diff_secs, format="%m/%d/%Y %H:%M"):
+def get_start_and_end(diff_secs, format="%m/%d/%Y %H:%M", escape=True):
     d = datetime.utcnow()
     start_time = (d + timedelta(seconds=-diff_secs))
     start_time = start_time.strftime(format)
     end_time = d.strftime(format)
-    start_time = urllib.quote_plus(start_time)
-    end_time = urllib.quote_plus(end_time)
+    if escape:
+        start_time = urllib.quote_plus(start_time)
+        end_time = urllib.quote_plus(end_time)
     return [start_time, end_time]
 
 
