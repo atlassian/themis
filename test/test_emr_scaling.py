@@ -87,6 +87,22 @@ def test_upscale():
     nodes = get_nodes_to_add(info, config)
     assert(len(nodes) == 0)
 
+    config = get_test_cluster_config(
+        upscale_expr="""3 if (tasknodes.running and tasknodes.active and tasknodes.count.nodes < 25 \
+            and (tasknodes.min.cpu > 0.8 or tasknodes.min.mem > 0.8)) else 0""")
+
+    server.cpu = 90  # mock 90% CPU usage
+    server.mem = 50  # mock 50% memory usage
+    info = mock_cluster_state(spot_nodes=4, config=config)
+    nodes = get_nodes_to_add(info, config)
+    assert (len(nodes) == 3)
+
+    server.cpu = 70  # mock 70% CPU usage
+    server.mem = 50  # mock 50% memory usage
+    info = mock_cluster_state(spot_nodes=4, config=config)
+    nodes = get_nodes_to_add(info, config)
+    assert (len(nodes) == 0)
+
 
 def test_upscale_time_based():
     common.QUERY_CACHE_TIMEOUT = 0
@@ -156,6 +172,23 @@ def test_downscale():
     info = mock_cluster_state(spot_nodes=4, config=config)
     nodes = get_nodes_to_terminate(info, config)
     assert(len(nodes) == 1)
+
+    config = get_test_cluster_config(preferred_market=MARKET_SPOT,
+        downscale_expr="""1 if (tasknodes.running and tasknodes.active and
+            tasknodes.count.nodes > 2 and tasknodes.max.cpu < 0.2 and tasknodes.max.mem < 0.2) else 0""")
+
+    server.cpu = 10  # mock 10% CPU usage
+    server.mem = 90  # mock 90% memory free
+
+    info = mock_cluster_state(spot_nodes=4, config=config)
+    nodes = get_nodes_to_terminate(info, config)
+    assert(len(nodes) == 1)
+
+    server.cpu = 30  # mock 30% CPU usage
+    server.mem = 90  # mock 10% memory usage
+    info = mock_cluster_state(spot_nodes=4, config=config)
+    nodes = get_nodes_to_terminate(info, config)
+    assert (len(nodes) == 0)
 
 
 def test_downscale_time_based():

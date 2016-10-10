@@ -5,7 +5,10 @@ class NodesInfo:
         self.running = nodes['running']
         self.active = nodes['active']
         self.count = CountStatsExpr(nodes['count'])
-        self.average = AverageStatsExpr(nodes['average'])
+        self.average = AggregateStatsExpr(nodes['average'])
+        self.total = AggregateStatsExpr(nodes['sum'])
+        self.min = AggregateStatsExpr(nodes['min'])
+        self.max = AggregateStatsExpr(nodes['max'])
 
 
 class CountStatsExpr:
@@ -14,7 +17,7 @@ class CountStatsExpr:
             self.nodes = info['nodes']
 
 
-class AverageStatsExpr:
+class AggregateStatsExpr:
     def __init__(self, info):
         if 'cpu' in info:
             self.cpu = info['cpu']

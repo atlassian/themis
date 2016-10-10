@@ -207,17 +207,33 @@ def do_add_stats(nodelist, result_map):
     result_map['average'] = {}
     result_map['sum'] = {}
     result_map['count'] = {}
+    result_map['max'] = {}
+    result_map['min'] = {}
     result_map['running'] = True
     result_map['active'] = True
+    max_cpu = 0.0
+    min_cpu = 100
+    max_mem = 0.0
+    min_mem = 100
     sum_cpu = 0.0
     sum_mem = 0.0
     sum_queries = 0.0
     for item in nodelist:
         if 'load' in item:
             if 'mem' in item['load'] and is_float(item['load']['mem']):
+                if item['load']['mem'] > max_mem:
+                    max_mem = item['load']['mem']
+                if item['load']['mem'] < min_mem:
+                    min_mem = item['load']['mem']
                 sum_mem += item['load']['mem']
+
             if 'cpu' in item['load'] and is_float(item['load']['cpu']):
+                if item['load']['cpu'] > max_cpu:
+                    max_cpu = item['load']['cpu']
+                if item['load']['cpu'] < min_cpu:
+                    min_cpu = item['load']['cpu']
                 sum_cpu += item['load']['cpu']
+
         if 'queries' in item:
             sum_queries += item['queries']
         if 'state' not in item:
@@ -231,10 +247,22 @@ def do_add_stats(nodelist, result_map):
     result_map['average']['cpu'] = 'NaN'
     result_map['average']['mem'] = 'NaN'
     result_map['average']['queries'] = 'NaN'
+    result_map['sum']['cpu'] = 'NaN'
+    result_map['sum']['mem'] = 'NaN'
+    result_map['max']['cpu'] = 'NaN'
+    result_map['min']['cpu'] = 'NaN'
+    result_map['max']['mem'] = 'NaN'
+    result_map['min']['mem'] = 'NaN'
     if len(nodelist) > 0:
         result_map['average']['cpu'] = sum_cpu / len(nodelist)
         result_map['average']['mem'] = sum_mem / len(nodelist)
         result_map['average']['queries'] = sum_queries / len(nodelist)
+        result_map['sum']['cpu'] = sum_cpu
+        result_map['sum']['mem'] = sum_mem
+        result_map['max']['cpu'] = max_cpu
+        result_map['min']['cpu'] = min_cpu
+        result_map['max']['mem'] = max_mem
+        result_map['min']['mem'] = min_mem
     result_map['sum']['queries'] = sum_queries
     result_map['count']['nodes'] = len(nodelist)
 
