@@ -8,7 +8,7 @@ import themis
 from themis import config
 from themis.config import *
 from themis.constants import *
-from themis.util import common, aws_common, aws_pricing
+from themis.util import common, aws_common, aws_pricing, expr
 from themis.monitoring import emr_monitoring, database
 from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
 
@@ -32,7 +32,7 @@ def get_node_groups_or_preferred_markets(cluster_id, info=None, config=None):
     # try to evaluate as an expression
     try:
         if info:
-            result = emr_monitoring.execute_dsl_string(preferred, info, config)
+            result = execute_dsl_string(preferred, info, config)
             if not isinstance(result, (list, tuple)):
                 result = [str(result)]
             return result
@@ -69,12 +69,55 @@ def get_termination_candidates_for_market_or_group(info, preferred):
     return candidates
 
 
+def execute_dsl_string(dsl_str, context, config=None):
+    expr_context = expr.ExprContext(context)
+    allnodes = expr_context.allnodes
+    tasknodes = expr_context.tasknodes
+    time_based = expr_context.time_based
+    cluster_id = context['cluster_id']
+
+    def get_min_nodes_for_cluster(date):
+        return get_minimum_nodes(date, cluster_id)
+    time_based.minimum.nodes = get_min_nodes_for_cluster
+    now = datetime.utcnow()
+    now_override = themis.config.get_value(KEY_NOW, config=config, default=None)
+    if now_override:
+        now = now_override
+
+    return eval(dsl_str)
+
+
+# returns nodes if based on regex dict values
+# assumes no overlapping entries as will grab the first item it matches.
+def get_minimum_nodes(date, cluster_id):
+    now_str = date.strftime("%a %Y-%m-%d %H:%M:%S")
+
+    # This is only used for testing, to overwrite the config. If TEST_CONFIG is
+    # None (which is the default), then the actual configuration will be used.
+    config = themis.config.TEST_CONFIG
+
+    pattern_to_nodes = emr_monitoring.get_time_based_scaling_config(cluster_id=cluster_id, config=config)
+    nodes_to_return = None
+    for pattern, num_nodes in pattern_to_nodes.iteritems():
+        if re.match(pattern, now_str):
+            if nodes_to_return is None:
+                nodes_to_return = num_nodes
+            else:
+                LOG.warning(("'%s' Regex Pattern has matched more than once:\nnodes_to_return=%d " +
+                    "is now changing to nodes_to_return=%d") % (pattern, nodes_to_return, num_nodes))
+                nodes_to_return = num_nodes
+    # no match revert to default
+    if nodes_to_return is None:
+        return DEFAULT_MIN_TASK_NODES
+    return nodes_to_return
+
+
 def get_nodes_to_terminate(info, config=None):
     cluster_id = info['cluster_id']
     if not config:
         config = themis.config.get_config()
     expr = config.get(SECTION_EMR, cluster_id, KEY_DOWNSCALE_EXPR)
-    num_downsize = emr_monitoring.execute_dsl_string(expr, info, config)
+    num_downsize = execute_dsl_string(expr, info, config)
     LOG.info("Cluster %s: num_downsize: %s" % (cluster_id, num_downsize))
     if not isinstance(num_downsize, int) or num_downsize <= 0:
         return []
@@ -107,7 +150,7 @@ def get_nodes_to_add(info, config=None):
         config = themis.config.get_config()
     cluster_id = info['cluster_id']
     expr = config.get(SECTION_EMR, cluster_id, KEY_UPSCALE_EXPR)
-    num_upsize = emr_monitoring.execute_dsl_string(expr, info, config)
+    num_upsize = execute_dsl_string(expr, info, config)
     num_upsize = int(float(num_upsize))
     LOG.info("Cluster %s: num_upsize: %s" % (cluster_id, num_upsize))
     if num_upsize > 0:

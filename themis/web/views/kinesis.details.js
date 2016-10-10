@@ -3,7 +3,7 @@
 
   var app = angular.module('app');
 
-  app.controller('kinesisDetailsCtrl', function($scope, $stateParams, $interval, restClient, appConfig) {
+  app.controller('kinesisDetailsCtrl', function($scope, $stateParams, $interval, restClient, appConfig, appUtils) {
 
     var client = restClient;
     appConfig.section = 'kinesis';
@@ -14,6 +14,7 @@
     $scope.settings = {};
     $scope.active_tab = 1;
     $scope.streamId = $stateParams.streamId;
+    $scope.appUtils = appUtils;
     var timer = null;
 
     if($stateParams.tab) {

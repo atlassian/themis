@@ -89,7 +89,7 @@ class GeneralConfiguration(ConfigObject):
         'ssh_keys': 'Comma-separated list of SSH public key files to use for connecting to the clusters.',
         # TODO move to EMR config?
         'autoscaling_clusters': 'Comma-separated list of cluster IDs to auto-scale',
-        # TODO move to EMR config?
+        # TODO move to Kinesis config?
         'autoscaling_kinesis_streams': 'Comma-separated list of Kinesis stream names to auto-scale',
         'scaling_loop_interval': 'Loop interval seconds',
         'monitoring_time_window': 'Time period (seconds) of historical monitoring data to consider for scaling'
@@ -174,12 +174,16 @@ class KinesisConfiguration(ConfigObject):
 
 class KinesisStreamConfiguration(ConfigObject):
     CONFIG_ITEMS = {
-        'enable_enhanced_monitoring': """Enable enhanced monitoring. If the value is "true", \
-            enables per-shard monitoring with ShardLevelMetrics=ALL"""
+        'enable_enhanced_monitoring': """Enable enhanced monitoring. A value of "true" \
+            enables per-shard monitoring with ShardLevelMetrics=ALL""",
+        'upscale_expr': 'Trigger stream upscaling by the number of shards this expression evaluates to',
+        'downscale_expr': 'Trigger stream downscaling by the number of nodes this expression evaluates to'
     }
 
     def __init__(self):
         self.enable_enhanced_monitoring = 'false'
+        self.downscale_expr = '1 if (shards.count > 1 and stream.IncomingBytes.average < 100000) else 0'
+        self.upscale_expr = '1 if (shards.count < 5 and stream.IncomingBytes.average > 100000) else 0'
 
 
 ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration]
@@ -250,6 +254,20 @@ def get_value(key, config=None, default=None, section=SECTION_GLOBAL, resource=N
     if resource:
         keys = (section, resource, key)
     return config.get(*keys, default=default)
+
+
+def set_value(key, new_value, section=SECTION_GLOBAL, resource=None, config=None):
+    given_config = config
+    if not config:
+        config = get_config()
+    target_config = config.get(section)
+    if resource:
+        target_config = target_config.get(resource)
+    target_config.set(key, new_value)
+    if not given_config:
+        # write changes to config file
+        write(target_config, section=section, resource=resource)
+    return target_config
 
 
 # def invalidate_cache(section):

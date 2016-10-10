@@ -10,6 +10,12 @@ from themis.monitoring import kinesis_monitoring, emr_monitoring
 RESOURCES_CONFIG = None
 
 
+def update_resources(section=None):
+    RESOURCES_CONFIG.kinesis = kinesis_monitoring.update_resources(RESOURCES_CONFIG.kinesis)
+    RESOURCES_CONFIG.emr = emr_monitoring.update_resources(RESOURCES_CONFIG.emr)
+    common.save_file(RESOURCES_FILE_LOCATION, RESOURCES_CONFIG.to_json())
+
+
 def get_resources(section=None):
     global RESOURCES_CONFIG
     if not os.path.isfile(RESOURCES_FILE_LOCATION):
@@ -18,6 +24,7 @@ def get_resources(section=None):
     if RESOURCES_CONFIG is None:
         content = load_json_file(RESOURCES_FILE_LOCATION)
         RESOURCES_CONFIG = ResourcesConfiguration.from_dict(content)
+    update_resources(section)
     if not section:
         return RESOURCES_CONFIG.get_all()
     return RESOURCES_CONFIG.get(section)

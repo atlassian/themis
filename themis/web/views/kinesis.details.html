@@ -25,27 +25,24 @@
             <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
               <thead>
                 <tr>
-                  <th ts-criteria="id" id="shard_id">Name</th>
-                  <th ts-criteria="throughput" id="throughput">Throughput</th>
+                  <th ts-criteria="id" id="shard_id">Shard ID</th>
+                  <th ts-criteria="IncomingBytes.average" id="IncomingBytes">Incoming Bytes / min</th>
+                  <th ts-criteria="IncomingRecords.average" id="IncomingRecords">Incoming Records / min</th>
                   <th ts-criteria="actions" id="actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                <tr ng-repeat="value in state.data.shards track by value.id" ts-repeat>
+                <tr ng-repeat="value in state.data.shards_list track by value.id" ts-repeat>
                   <td headers="id">{{value.id}}</td>
-                  <td headers="throughput">{{value.throughput}}</td>
+                  <td headers="throughput">{{appUtils.format_number(value.IncomingBytes.average)}}</td>
+                  <td headers="throughput">{{appUtils.format_number(value.IncomingRecords.average)}}</td>
                   <td headers="actions">n/a</td>
                 </tr>
-                <tr class="summary" ng-hide="!state.data.nodes_list.length">
-                  <td headers="host_name">Total</td>
-                  <td>Σ {{state.data.tasknodes.count.nodes}} TASK</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td ng-hide="!state.data.is_presto"></td>
-                  <td headers="load_cpu">Ø {{state.data.tasknodes.average.cpu | percentage}}</td>
-                  <td headers="load_mem">Ø {{state.data.tasknodes.average.mem | percentage}}</td>
-                  <td headers="queries">{{state.data.allnodes.sum.queries}}</td>
+                <tr class="summary" ng-hide="!state.data.shards_list.length">
+                  <td headers="id">Total Σ</td>
+                  <td headers="IncomingBytes">{{state.data.total.IncomingBytes.average | number:2}}</td>
+                  <td headers="IncomingRecords">{{state.data.total.IncomingRecords.average | number:2}}</td>
+                  <td headers="actions"></td>
                   <td></td>
                 </tr>
               </tbody>

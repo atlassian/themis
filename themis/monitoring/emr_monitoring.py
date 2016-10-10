@@ -9,7 +9,7 @@ import traceback
 from datetime import timedelta, datetime
 from scipy import integrate
 from themis import constants, config
-from themis.util import aws_common, common, expr
+from themis.util import aws_common, common
 from themis.util.common import *
 from themis.config import SECTION_EMR
 from themis.util.remote import run_ssh
@@ -26,7 +26,7 @@ MONITORING_INTERVAL_SECS = 60 * 10
 DEFAULT_MIN_TASK_NODES = 1
 
 
-def remove_nan(array):
+def remove_array_with_NaN(array):
     i = 0
     while i < len(array):
         for item in array[i]:
@@ -81,7 +81,7 @@ def get_node_load_part(cluster, host, type, monitoring_interval_secs=MONITORING_
 
     for curve in ganglia_data:
         datapoints = curve['datapoints']
-        remove_nan(datapoints)
+        remove_array_with_NaN(datapoints)
         rev_curve = array_reverse(datapoints)
         curve_ds_name = curve['ds_name']
         curves_map[curve_ds_name] = rev_curve
@@ -137,6 +137,7 @@ def get_cluster_load(cluster, nodes=None, monitoring_interval_secs=MONITORING_IN
             load = get_node_load(cluster, host, monitoring_interval_secs)
             result[host] = load
         except Exception, e:
+            print(traceback.format_exc())
             LOG.warning("Unable to get load for node %s: %s" % (host, e))
             result[host] = {}
 
@@ -338,24 +339,6 @@ def collect_info(cluster, nodes=None, config=None,
         return {}
 
 
-def execute_dsl_string(dsl_str, context, config=None):
-    expr_context = expr.ExprContext(context)
-    allnodes = expr_context.allnodes
-    tasknodes = expr_context.tasknodes
-    time_based = expr_context.time_based
-    cluster_id = context['cluster_id']
-
-    def get_min_nodes_for_cluster(date):
-        return get_minimum_nodes(date, cluster_id)
-    time_based.minimum.nodes = get_min_nodes_for_cluster
-    now = datetime.utcnow()
-    now_override = themis.config.get_value(constants.KEY_NOW, config=config, default=None)
-    if now_override:
-        now = now_override
-
-    return eval(dsl_str)
-
-
 def get_time_based_scaling_config(cluster_id, config=None):
     result = themis.config.get_value(constants.KEY_TIME_BASED_SCALING,
         config=config, default='{}', section=SECTION_EMR, resource=cluster_id)
@@ -365,29 +348,8 @@ def get_time_based_scaling_config(cluster_id, config=None):
         return {}
 
 
-# returns nodes if based on regex dict values
-# assumes no overlapping entries as will grab the first item it matches.
-def get_minimum_nodes(date, cluster_id):
-    now_str = date.strftime("%a %Y-%m-%d %H:%M:%S")
-
-    # This is only used for testing, to overwrite the config. If TEST_CONFIG is
-    # None (which is the default), then the actual configuration will be used.
-    config = themis.config.TEST_CONFIG
-
-    pattern_to_nodes = get_time_based_scaling_config(cluster_id=cluster_id, config=config)
-    nodes_to_return = None
-    for pattern, num_nodes in pattern_to_nodes.iteritems():
-        if re.match(pattern, now_str):
-            if nodes_to_return is None:
-                nodes_to_return = num_nodes
-            else:
-                LOG.warning(("'%s' Regex Pattern has matched more than once:\nnodes_to_return=%d " +
-                    "is now changing to nodes_to_return=%d") % (pattern, nodes_to_return, num_nodes))
-                nodes_to_return = num_nodes
-    # no match revert to default
-    if nodes_to_return is None:
-        return DEFAULT_MIN_TASK_NODES
-    return nodes_to_return
+def update_resources(resource_config):
+    return resource_config
 
 
 def init_emr_config(run_parallel=False):

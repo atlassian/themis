@@ -5,9 +5,13 @@ import themis.model.kinesis_model
 from themis.model.aws_model import *
 from themis.config import *
 from themis.util.common import *
+from themis.util import timeseries
 
 # logger
 LOG = get_logger(__name__)
+
+# constants
+MONITORING_METRICS_ALL = 'ALL'
 
 
 def update_config(old_config, new_config, section, resource=None):
@@ -29,14 +33,25 @@ def update_config(old_config, new_config, section, resource=None):
 config.CONFIG_LISTENERS.add(update_config)
 
 
+def update_resources(resource_config):
+    for resource in resource_config:
+        id = resource.id
+        enabled = config.get_value('enable_enhanced_monitoring', section=SECTION_KINESIS, resource=id)
+        if enabled == 'true':
+            resource.enhanced_monitoring = [MONITORING_METRICS_ALL]
+    return resource_config
+
+
 def get_cloudwatch_metrics(metric, namespace, dimensions, time_window=600, period=60):
     start_time, end_time = get_start_and_end(diff_secs=time_window, format="%Y-%m-%dT%H:%M:%S", escape=False)
+    metric_names = metric if isinstance(metric, basestring) else ','.join(metric)
     cmd = ("""aws cloudwatch get-metric-statistics --namespace=%s --metric-name=%s \
          --start-time=%s --end-time=%s --period=%s --statistics=Average --dimensions %s""" %
-         (namespace, metric, start_time, end_time, period, dimensions))
+         (namespace, metric_names, start_time, end_time, period, dimensions))
+    # print(cmd)
     datapoints = json.loads(run(cmd))
     datapoints = datapoints['Datapoints']
-    print(datapoints)
+    # print(datapoints)
     return datapoints
 
 
@@ -54,19 +69,52 @@ def disable_shard_monitoring(stream, metrics='ALL'):
     run(cmd)
 
 
-def get_kinesis_cloudwatch_metrics(stream, metric):
+def get_kinesis_cloudwatch_metrics(stream, metric, shard=None):
     dimensions = 'Name=StreamName,Value=%s' % stream.id
+    if shard:
+        shard = shard if isinstance(shard, basestring) else shard.id
     return get_cloudwatch_metrics(metric=metric, namespace='AWS/Kinesis', dimensions=dimensions)
+
+
+# TODO
+def avg(list):
+    s
 
 
 def collect_info(stream, monitoring_interval_secs=600):
     result = {}
-    shards = result['shards'] = []
-    datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric='IncomingBytes')
+    shards_list = result['shards_list'] = []
     for shard in stream.shards:
         shard = shard.to_dict()
-        shards.append(shard)
-    result['datapoints'] = datapoints
+        shards_list.append(shard)
+    total = result['total'] = result['stream'] = {}
+    shards = result['shards'] = {}
+    shards['count'] = len(shards_list)
+    metrics = ['IncomingBytes', 'IncomingRecords']
+    metrics_map = {}
+    shard_monitoring_enabled = len(stream.enhanced_monitoring) > 0
+    for metric in metrics:
+        datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric=metric)
+        series = timeseries.get_cloudwatch_timeseries(datapoints)
+        total[metric] = {}
+        # total[metric]['datapoints'] = datapoints
+        total[metric]['average'] = series.mean()
+        total[metric]['max'] = series.max()
+        total[metric]['min'] = series.min()
+        if shard_monitoring_enabled:
+            for shard in shards:
+                datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric=metric, shard=shard)
+                series = timeseries.get_cloudwatch_timeseries(datapoints)
+                if metric not in metrics_map:
+                    metrics_map[metric] = {}
+                    metrics_map[metric]['average'] = []
+                    metrics_map[metric]['max'] = []
+                    metrics_map[metric]['min'] = []
+                metrics_map[metric].append(TODO)
+    # for m_name, m_list in metrics_map.iteritems():
+    #     result['shards'][metric]['average'] = avg()
+    print(result)
+    remove_NaN(result, delete_values=False)
     return result
 
 

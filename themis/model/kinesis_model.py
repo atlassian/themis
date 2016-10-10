@@ -1,5 +1,6 @@
 from themis.model.aws_model import *
 from themis.monitoring import kinesis_monitoring
+from themis.scaling import kinesis_scaling
 from themis import config
 
 
@@ -21,8 +22,7 @@ class KinesisStream(Scalable, Monitorable):
         return self.id in stream_ids
 
     def perform_scaling(self, params=None):
-        print('Kinesis perform_scaling')
-        # TODO
+        kinesis_scaling.perform_scaling(self)
 
     @classmethod
     def from_json(cls, j):
