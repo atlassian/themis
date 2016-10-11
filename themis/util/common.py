@@ -117,7 +117,8 @@ def is_number(s):
 def is_NaN(obj, expect_only_numbers=False):
     if expect_only_numbers and not is_number(obj):
         return True
-    if obj == 'NaN' or (isinstance(obj, float) and math.isnan(obj)):
+    if obj == 'NaN' or (isinstance(obj, float) and
+            math.isnan(obj) or obj in [float('Inf'), -float('Inf')]):
         return True
     return False
 

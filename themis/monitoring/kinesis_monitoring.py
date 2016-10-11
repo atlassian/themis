@@ -5,7 +5,7 @@ import themis.model.kinesis_model
 from themis.model.aws_model import *
 from themis.config import *
 from themis.util.common import *
-from themis.util import timeseries
+from themis.util import timeseries, math_util
 
 # logger
 LOG = get_logger(__name__)
@@ -76,9 +76,10 @@ def get_kinesis_cloudwatch_metrics(stream, metric, shard=None):
     return get_cloudwatch_metrics(metric=metric, namespace='AWS/Kinesis', dimensions=dimensions)
 
 
-# TODO
-def avg(list):
-    s
+def replace_nan(value, default=0):
+    if math.isnan(value):
+        return default
+    return value
 
 
 def collect_info(stream, monitoring_interval_secs=600):
@@ -96,46 +97,56 @@ def collect_info(stream, monitoring_interval_secs=600):
     for metric in metrics:
         datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric=metric)
         series = timeseries.get_cloudwatch_timeseries(datapoints)
+        shards[metric] = {}
         total[metric] = {}
-        # total[metric]['datapoints'] = datapoints
-        total[metric]['average'] = series.mean()
-        total[metric]['max'] = series.max()
-        total[metric]['min'] = series.min()
+        total[metric]['average'] = replace_nan(series.mean())
+        total[metric]['max'] = replace_nan(series.max())
+        total[metric]['min'] = replace_nan(series.min())
+        # map for shard-level metrics
+        metrics_map[metric] = {}
+        metrics_map[metric]['average'] = []
+        metrics_map[metric]['max'] = []
+        metrics_map[metric]['min'] = []
         if shard_monitoring_enabled:
-            for shard in shards:
+            # collect detailed shard-level monitoring metrics
+            for shard in stream.shards:
                 datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric=metric, shard=shard)
                 series = timeseries.get_cloudwatch_timeseries(datapoints)
-                if metric not in metrics_map:
-                    metrics_map[metric] = {}
-                    metrics_map[metric]['average'] = []
-                    metrics_map[metric]['max'] = []
-                    metrics_map[metric]['min'] = []
-                metrics_map[metric].append(TODO)
-    # for m_name, m_list in metrics_map.iteritems():
-    #     result['shards'][metric]['average'] = avg()
-    print(result)
+                metrics_map[metric]['average'].append(replace_nan(series.mean()))
+                metrics_map[metric]['max'].append(replace_nan(series.max()))
+                metrics_map[metric]['min'].append(replace_nan(series.min()))
+    for m_name, m_lists in metrics_map.iteritems():
+        shards[metric]['average'] = math_util.get_stats(m_lists['average'])['avg']
+        shards[metric]['min'] = math_util.get_stats(m_lists['min'])['min']
+        shards[metric]['max'] = math_util.get_stats(m_lists['max'])['max']
+    # print(result)
     remove_NaN(result, delete_values=False)
     return result
+
+
+def retrieve_stream_details(stream_name):
+    LOG.info('Getting details for Kinesis stream %s' % stream_name)
+    out = run('aws kinesis describe-stream --stream-name %s' % stream_name)
+    out = json.loads(out)
+    stream_shards = out['StreamDescription']['Shards']
+    stream = themis.model.kinesis_model.KinesisStream(stream_name)
+    num_shards = len(stream_shards)
+    for shard in stream_shards:
+        if 'EndingSequenceNumber' not in shard['SequenceNumberRange']:
+            key_range = shard['HashKeyRange']
+            shard = themis.model.kinesis_model.KinesisShard(id=shard['ShardId'])
+            shard.start_key = key_range['StartingHashKey']
+            shard.end_key = key_range['EndingHashKey']
+            stream.shards.append(shard)
+    return stream
 
 
 def init_kinesis_config(run_parallel=False):
     cfg = themis.model.resources_model.ResourcesConfiguration()
 
     def init_kinesis_stream_config(stream_name):
-        LOG.info('Getting details for Kinesis stream %s' % stream_name)
-        out = run('aws kinesis describe-stream --stream-name %s' % stream_name)
-        out = json.loads(out)
-        stream_shards = out['StreamDescription']['Shards']
-        stream = themis.model.kinesis_model.KinesisStream(stream_name)
-        num_shards = len(stream_shards)
-        for shard in stream_shards:
-            key_range = shard['HashKeyRange']
-            shard = themis.model.kinesis_model.KinesisShard(id=shard['ShardId'])
-            shard.start_key = key_range['StartingHashKey']
-            shard.end_key = key_range['EndingHashKey']
-            stream.shards.append(shard)
-        cfg.kinesis.append(stream)
-        return stream
+        stream_config = retrieve_stream_details(stream_name)
+        cfg.kinesis.append(stream_config)
 
     # load Kinesis streams
     out = run('aws kinesis list-streams')

@@ -189,6 +189,22 @@ def select_tasknode_group(tasknodes_groups, cluster_id, info=None):
             (preferred_list, tasknodes_groups))
 
 
+def add_history_entry(cluster, state, action):
+    nodes = state['nodes']
+    state['nodes'] = {}
+    del state['nodes_list']
+    state['groups'] = {}
+    for key, val in nodes.iteritems():
+        group_id = val['gid']
+        if group_id not in state['groups']:
+            state['groups'][group_id] = {'instances': []}
+        state['groups'][group_id]['instances'].append({
+            'iid': val['iid']
+            # TODO add more relevant data to persist
+        })
+    database.history_add(section=SECTION_EMR, resource=cluster.id, state=state, action=action)
+
+
 def perform_scaling(cluster):
     app_config = config.get_config()
     monitoring_interval_secs = int(app_config.general.monitoring_time_window)
@@ -220,4 +236,4 @@ def perform_scaling(cluster):
             # clean up and terminate instances whose nodes are already in inactive state
             aws_common.terminate_inactive_nodes(cluster, info)
         # store the state for future reference
-        database.history_add(cluster.id, info, action)
+        add_history_entry(cluster, info, action)
