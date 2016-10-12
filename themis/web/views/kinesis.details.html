@@ -43,8 +43,8 @@
                   <td></td>
                   <td></td>
                   <td ng-hide="!state.data.is_presto"></td>
-                  <td headers="load_cpu">Ø {{format_percent(state.data.tasknodes.average.cpu)}}</td>
-                  <td headers="load_mem">Ø {{format_percent(state.data.tasknodes.average.mem)}}</td>
+                  <td headers="load_cpu">Ø {{state.data.tasknodes.average.cpu | percentage}}</td>
+                  <td headers="load_mem">Ø {{state.data.tasknodes.average.mem | percentage}}</td>
                   <td headers="queries">{{state.data.allnodes.sum.queries}}</td>
                   <td></td>
                 </tr>
@@ -77,10 +77,10 @@
               </thead>
               <tbody>
                 <tr ng-repeat="value in history.data track by value.timestamp" ts-repeat>
-                  <td headers="hist_timestamp">{{format_datetime(value.timestamp)}}</td>
+                  <td headers="hist_timestamp">{{value.timestamp | datetime}}</td>
                   <td headers="hist_nodes">{{value.state.tasknodes.count.nodes}}</td>
-                  <td headers="hist_cpu">{{format_percent(value.state.tasknodes.average.cpu)}}</td>
-                  <td headers="hist_mem">{{format_percent(value.state.tasknodes.average.mem)}}</td>
+                  <td headers="hist_cpu">{{value.state.tasknodes.average.cpu | percentage}}</td>
+                  <td headers="hist_mem">{{value.state.tasknodes.average.mem | percentage}}</td>
                   <td headers="hist_queries">{{value.state.allnodes.sum.queries}}</td>
                   <td headers="hist_action">{{value.action}}</td>
                 </tr>
@@ -110,17 +110,17 @@
               <tbody>
                 <tr ng-repeat="value in savings.instances track by value.iid" ts-repeat>
                   <td headers="cost_inst_id">{{value.iid}}</td>
-                  <td headers="cost_inst_start">{{format_datetime(value.start * 1000)}}</td>
-                  <td headers="cost_inst_end">{{format_datetime(value.end * 1000)}}</td>
-                  <td headers="cost_inst_h">{{value.hours}} ({{format_number((value.end-value.start) / 60.0 / 60.0)}})</td>
-                  <td headers="cost_inst_costs">{{format_number(value.costs)}}</td>
+                  <td headers="cost_inst_start">{{value.start * 1000 | datetime}}</td>
+                  <td headers="cost_inst_end">{{value.end * 1000 | datetime}}</td>
+                  <td headers="cost_inst_h">{{value.hours}} ({{(value.end-value.start) / 60.0 / 60.0 | number:2}})</td>
+                  <td headers="cost_inst_costs">{{value.costs | number:2}}</td>
                 </tr>
                 <tr class="summary" ng-hide="!savings.instances">
                   <td headers="cost_inst_id">Total</td>
                   <td headers="cost_inst_start">Σ {{savings.instances.length}} instances</td>
                   <td headers="cost_inst_end"></td>
                   <td headers="cost_inst_h">{{savings.hours}}</td>
-                  <td headers="cost_inst_costs">{{format_number(savings.costs)}}</td>
+                  <td headers="cost_inst_costs">{{savings.costs | number:2}}</td>
                 </tr>
               </tbody>
             </table>

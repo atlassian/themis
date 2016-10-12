@@ -105,32 +105,18 @@
     };
   });
 
-  app.factory('appUtils', function() {
-    return {
-      format_number: function(value, digits_after_comma=2) {
-        return parseFloat('' + value).toFixed(digits_after_comma);
-      },
-
-      format_percent: function(value) {
-        return this.format_number(parseFloat('' + value) * 100.0) + " %"
-      },
-
-      format_datetime: function(ms) {
-        var a = new Date(parseInt(ms));
-        //var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        //var month = months[a.getMonth()];
-        var month = a.getMonth() + 1;
-        month = month < 10 ? '0' + month : month;
-        var year = a.getFullYear();
-        var date = a.getDate() < 10 ? '0' + a.getDate() : a.getDate();
-        var hour = a.getHours() < 10 ? '0' + a.getHours() : a.getHours();
-        var min = a.getMinutes() < 10 ? '0' + a.getMinutes() : a.getMinutes();
-        var sec = a.getSeconds() < 10 ? '0' + a.getSeconds() : a.getSeconds();
-        var time = year + '-' + month + '-' + date + ' ' + hour + ':' + min + ':' + sec ;
-        return time;
-      },
-
-      format_duration: function(seconds) {
+  app.filter('percentage', ['$filter', function ($filter) {
+    return function (input, decimals=2) {
+      return $filter('number')(input * 100, decimals) + '%';
+    };
+  }]);
+  app.filter('datetime', ['$filter', function ($filter) {
+    return function (input, format='yyyy-MMM-dd HH:mm:ss') {
+      return $filter('date')(parseInt(input), format);
+    };
+  }]);
+  app.filter('duration', function() {
+    return function (seconds) {
         var interval = Math.floor(seconds / 31536000);
         if (interval > 1) {
             return interval + " years";
@@ -152,12 +138,11 @@
             return interval + " minutes";
         }
         return Math.floor(seconds) + " seconds";
-      },
+    };
+  });
 
-      format_currency: function(amount, currency='USD', digits_after_comma=2) {
-        return currency + ' ' + this.format_number(amount, digits_after_comma);
-      },
-
+  app.factory('appUtils', function() {
+    return {
       arrayRemove: function(array, el) {
         for(var i = array.length - 1; i >= 0; i--) {
           if(array[i] === el) {
