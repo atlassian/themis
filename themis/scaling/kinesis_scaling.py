@@ -47,8 +47,13 @@ def get_upscale_shards(stream, config=None):
     LOG.info("Kinesis Stream %s: num_upsize: %s" % (stream.id, num_upsize))
     if not isinstance(num_upsize, int) or num_upsize <= 0:
         return []
+    shard = get_largest_shard(stream)
     result = []
-    # TODO
+    if shard:
+        result.append(shard)
+    else:
+        # re-load and save stream config
+        save_modified_stream(stream)
     return result
 
 
@@ -62,6 +67,15 @@ def get_smallest_shard_pair(stream):
         if not min_pair or size < min_pair.length():
             min_pair = ShardPair(s1, s2)
     return min_pair
+
+
+def get_largest_shard(stream):
+    shards = stream.shards
+    max_shard = None
+    for shard in shards:
+        if not max_shard or shard.length() < max_shard.length():
+            max_shard = shard
+    return max_shard
 
 
 def add_history_entry(stream, state, action):
@@ -89,8 +103,9 @@ def perform_scaling(kinesis_stream):
             action = 'UPSCALE(+%s)' % len(upscale)
             for shard in upscale:
                 LOG.info('Splitting shard %s of Kinesis stream %s' % (shard.id, kinesis_stream.id))
-                # cmd = run('aws kinesis merge-shards --stream-name %s --shard-to-merge %s --adjacent-shard-to-merge %s'
-                #     % (kinesis_stream.id, shard_pair.shard1.id, shard_pair.shard2.id))
+                new_start_key = shard.center_key()
+                cmd = run('aws kinesis split-shard --stream-name %s --shard-to-split %s --new-starting-hash-key %s'
+                    % (kinesis_stream.id, shard.id, new_start_key))
     except Exception, e:
         LOG.warning('Unable to re-scale stream %s: %s' % (kinesis_stream.id, e))
     if downscale or upscale:

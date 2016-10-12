@@ -1,4 +1,13 @@
 <section id="content">
+
+<header class="aui-page-header">
+  <div class="aui-page-header-inner">
+    <div class="aui-page-header-main">
+      <h1 style="font-size: 24px" id="heading-title">Details for Stream {{streamId}}</h1>
+    </div>
+  </div>
+</header>
+
 <div class="aui-page-panel">
   <div class="aui-page-panel-inner">
     <section class="aui-page-panel-content">
@@ -43,7 +52,6 @@
                   <td headers="IncomingBytes">{{state.data.total.IncomingBytes.average | number:2}}</td>
                   <td headers="IncomingRecords">{{state.data.total.IncomingRecords.average | number:2}}</td>
                   <td headers="actions"></td>
-                  <td></td>
                 </tr>
               </tbody>
             </table>

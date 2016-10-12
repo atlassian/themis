@@ -35,6 +35,7 @@ def get_stats(values):
             min = num
     result = {}
     result['num'] = len(values)
+    result['sum'] = sum
     result['min'] = min
     result['max'] = max
     result['avg'] = sum / len(values)

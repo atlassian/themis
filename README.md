@@ -151,6 +151,8 @@ make server
 
 ## Change Log
 
+* v0.1.15: Initial support for auto-scaling Kinesis streams
+* v0.1.14: Add DSL support for max,min,sum of CPU and RAM in EMR autoscaling
 * v0.1.12: Add DSL support for preferred instance market config; allow to configure specific task group
 * v0.1.9: Add coveralls badge to README
 * v0.1.8: Rework code, add model classes, make model and configuration generic, prepare for adding Kinesis autoscaling
@@ -166,7 +168,7 @@ The following developers have contributed to Themis (in order of appearance of t
 * [FJK-NZ](https://github.com/FJK-NZ) (Feliks Krawczyk)
 * [hye1](https://github.com/hye1) (Hao Ye)
 * [tdawber](https://github.com/tdawber) (Thomas Dawber)
-* [patanachai](https://github.com/patanachai)
+* [patanachai](https://github.com/patanachai) (Patanachai Tangchaisin)
 
 ## Contributing
 

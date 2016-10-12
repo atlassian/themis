@@ -82,7 +82,7 @@ def replace_nan(value, default=0):
     return value
 
 
-def collect_info(stream, monitoring_interval_secs=600):
+def collect_info(stream, monitoring_interval_secs=600, config=None):
     result = {}
     shards_list = result['shards_list'] = []
     for shard in stream.shards:

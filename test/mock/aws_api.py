@@ -49,6 +49,7 @@ def init_aws_cli():
 def mock_aws_api(method, path, req, config={}):
     result = {}
     target = req.headers['X-Amz-Target']
+    print(target)
     if target == 'ElasticMapReduce.ListClusters':
         result = {
             "Clusters": [
