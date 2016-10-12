@@ -48,10 +48,8 @@ def get_cloudwatch_metrics(metric, namespace, dimensions, time_window=600, perio
     cmd = ("""aws cloudwatch get-metric-statistics --namespace=%s --metric-name=%s \
          --start-time=%s --end-time=%s --period=%s --statistics=Average --dimensions %s""" %
          (namespace, metric_names, start_time, end_time, period, dimensions))
-    # print(cmd)
     datapoints = json.loads(run(cmd))
     datapoints = datapoints['Datapoints']
-    # print(datapoints)
     return datapoints
 
 
@@ -119,7 +117,6 @@ def collect_info(stream, monitoring_interval_secs=600, config=None):
         shards[metric]['average'] = math_util.get_stats(m_lists['average'])['avg']
         shards[metric]['min'] = math_util.get_stats(m_lists['min'])['min']
         shards[metric]['max'] = math_util.get_stats(m_lists['max'])['max']
-    # print(result)
     remove_NaN(result, delete_values=False)
     return result
 

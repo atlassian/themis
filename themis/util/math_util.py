@@ -38,5 +38,5 @@ def get_stats(values):
     result['sum'] = sum
     result['min'] = min
     result['max'] = max
-    result['avg'] = sum / len(values)
+    result['avg'] = sum / len(values) if values else float('NaN')
     return result

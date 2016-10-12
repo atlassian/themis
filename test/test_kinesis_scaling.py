@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 import themis.config
 from themis import config
@@ -7,17 +8,22 @@ from themis.model.kinesis_model import *
 from themis.scaling import kinesis_scaling
 from themis.monitoring import kinesis_monitoring
 from constants import *
+import mock.aws_api
 
 server = None
 
 TEST_STREAM_ID = 'testStream'
 
 
+def setup():
+    mock.aws_api.init_mocks()
+
+
 def mock_stream_state(config=None):
     task_nodes = []
-    stream = KinesisStream(id=TEST_STREAM_ID)
-    info = kinesis_monitoring.collect_info(stream, config=config)
-    return info
+    stream = kinesis_monitoring.retrieve_stream_details(TEST_STREAM_ID)
+    stream.monitoring_data = kinesis_monitoring.collect_info(stream, config=config)
+    return stream
 
 
 def get_test_stream_config(upscale_expr=None, downscale_expr=None):
@@ -37,10 +43,24 @@ def get_test_stream_config(upscale_expr=None, downscale_expr=None):
 
 
 def test_upscale():
+
     common.QUERY_CACHE_TIMEOUT = 0
     config = get_test_stream_config(
         upscale_expr='1 if (shards.count < 5 and stream.IncomingBytes.average > 100000) else 0')
 
-    info = mock_stream_state(config=config)
-    shards = kinesis_scaling.get_upscale_shards(info, config)
-    assert(len(shards) == 3)
+    # mock cloudwatch metrics
+    mock.aws_api.server.config['cloudwatch.IncomingBytes.value'] = 1000
+
+    stream = mock_stream_state(config=config)
+    shards = kinesis_scaling.get_upscale_shards(stream, config)
+    assert(len(shards) == 0)
+
+    config = get_test_stream_config(
+        upscale_expr='1 if (shards.count < 5 and stream.IncomingBytes.average > 100) else 0')
+
+    # mock cloudwatch metrics
+    mock.aws_api.server.config['cloudwatch.IncomingBytes.value'] = 1000000
+
+    stream = mock_stream_state(config=config)
+    shards = kinesis_scaling.get_upscale_shards(stream, config)
+    assert(len(shards) == 1)

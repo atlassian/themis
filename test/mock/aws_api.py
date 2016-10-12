@@ -2,14 +2,25 @@ from flask import Flask, request, make_response, jsonify
 from flask_swagger import swagger
 import json
 import re
-import time
+import datetime
 import os
 import threading
 from themis.util import common
 from constants import *
+import time
 
 num_spot_nodes = 5
 num_od_nodes = 2
+
+server = None
+
+TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+
+
+def init_mocks():
+    global server
+    if not server:
+        server = serve(AWS_API_PORT)
 
 
 def serve(port, daemon=True):
@@ -46,11 +57,56 @@ def init_aws_cli():
             "aws_secret_access_key = testSecretKey")
 
 
+def parse_time(time, format=TIMESTAMP_FORMAT):
+    return datetime.datetime.strptime(time, format)
+
+
 def mock_aws_api(method, path, req, config={}):
     result = {}
-    target = req.headers['X-Amz-Target']
+    # print(req.headers)
+    target = req.headers.get('X-Amz-Target')
     print(target)
-    if target == 'ElasticMapReduce.ListClusters':
+    if path == 'aws/cloudwatch/get-metric-statistics':
+        action = req.form.get('Action')
+        if action == 'GetMetricStatistics':
+            metric_name = req.form.get('MetricName')
+            stats = []
+            dimensions = {}
+            start_time = parse_time(req.form.get('StartTime'))
+            end_time = parse_time(req.form.get('EndTime'))
+            period = int(req.form.get('Period'))
+            datapoints = ''
+
+            for i in range(1, 10):
+                stat = req.form.get('Statistics.member.%s' % i)
+                if not stat:
+                    break
+                stats.append(stat)
+
+            for i in range(1, 10):
+                key = req.form.get('Dimensions.member.%s.Name' % i)
+                if not key:
+                    break
+                dimensions[key] = req.form.get('Dimensions.member.%s.Value' % i)
+
+            timestamp = start_time
+            key = 'cloudwatch.%s.value' % metric_name
+            value = config.get(key) or 0
+            while timestamp < end_time:
+                datapoints += """<member><Timestamp>%s</Timestamp><Unit>%s</Unit><Average>%s</Average></member>
+                    """ % (timestamp.strftime(TIMESTAMP_FORMAT), "TODO", value)
+                timestamp += datetime.timedelta(seconds=period)
+
+            result_str = """<GetMetricStatisticsResponse xmlns="http://monitoring.amazonaws.com/doc/2010-08-01/">
+                  <GetMetricStatisticsResult>
+                    <Datapoints>%s</Datapoints>
+                    <Label>IncomingBytes</Label>
+                  </GetMetricStatisticsResult>
+                </GetMetricStatisticsResponse>""" % datapoints
+            result_str
+
+            return make_response(result_str)
+    elif target == 'ElasticMapReduce.ListClusters':
         result = {
             "Clusters": [
                 {
@@ -108,6 +164,7 @@ def mock_aws_api(method, path, req, config={}):
                 }
             }
         }
+
     elif target == 'ElasticMapReduce.ListInstanceGroups':
         result = {
             "InstanceGroups": []
@@ -124,9 +181,30 @@ def mock_aws_api(method, path, req, config={}):
                 "InstanceGroupType": t.split('_')[0].upper(),
                 "Id": group_id,
                 "InstanceType": "c3.xlarge",
-                "Market": ("SPOT" if t == 'task_spot' else "ON_DEMAND")
+                "Market": ('SPOT' if t == 'task_spot' else 'ON_DEMAND')
             }
             result['InstanceGroups'].append(g)
+
+    elif target == 'Kinesis_20131202.DescribeStream':
+        shards = []
+        num_shards = config.get('kinesis.num_shards') or 1
+        keys_per_shard = long('340282366920938463463374607431768211455') / long(num_shards)
+        start_key = long(0)
+        for i in range(0, num_shards):
+            shards.append({
+                "ShardId": "shardId-00000000000%s" % i,
+                "HashKeyRange": {
+                    "EndingHashKey": str(long(start_key + keys_per_shard)),
+                    "StartingHashKey": str(start_key)
+                },
+                "SequenceNumberRange": {
+                    "StartingSequenceNumber": "49566574182713195037261772394799414734632859404425232418"
+                }
+            })
+            start_key = long(start_key + keys_per_shard)
+        result = {
+            "StreamDescription": {"Shards": shards}
+        }
 
     elif target == 'ElasticMapReduce.ListBootstrapActions':
         result = {}

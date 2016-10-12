@@ -154,7 +154,6 @@ def short_uid():
 
 def inject_aws_endpoint(cmd):
     try:
-        print('inject %s' % os.environ.AWS_ENDPOINT_URL)
         if not os.environ.AWS_ENDPOINT_URL:
             return cmd
         regex = r'^aws ([^\s]+) ([^\s]+)(.*)$'
