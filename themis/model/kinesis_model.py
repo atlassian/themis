@@ -1,5 +1,6 @@
 from themis.model.aws_model import *
-from themis.monitoring import kinesis_monitoring
+import themis.monitoring.kinesis_monitoring
+import themis.scaling.kinesis_scaling
 from themis import config
 
 
@@ -12,7 +13,7 @@ class KinesisStream(Scalable, Monitorable):
 
     def fetch_data(self):
         if self.needs_scaling():
-            self.monitoring_data = kinesis_monitoring.collect_info(self)
+            self.monitoring_data = themis.monitoring.kinesis_monitoring.collect_info(self)
         return self.monitoring_data
 
     def needs_scaling(self, params=None):
@@ -21,8 +22,7 @@ class KinesisStream(Scalable, Monitorable):
         return self.id in stream_ids
 
     def perform_scaling(self, params=None):
-        print('Kinesis perform_scaling')
-        # TODO
+        themis.scaling.perform_scaling(self)
 
     @classmethod
     def from_json(cls, j):
@@ -49,6 +49,11 @@ class KinesisShard(Monitorable):
 
     def length(self):
         return long(self.end_key) - long(self.start_key)
+
+    def center_key(self):
+        length = self.length()
+        center = long(self.start_key) + length / 2
+        return str(long(center))
 
     def percent(self):
         return 100.0 * self.length() / float(KinesisShard.MAX_KEY)

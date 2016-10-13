@@ -13,13 +13,13 @@ class DefaultExtractor(object):
 
 class CloudwatchExtractor(object):
     def get_x(self, value, index=None, values=None):
+        return value['Timestamp']
+
+    def get_y(self, value, index=None, values=None):
         for k, v in value.iteritems():
             if k not in ['Timestamp', 'Unit']:
                 return v
         return None
-
-    def get_y(self, value, index=None, values=None):
-        return value['Timestamp']
 
 
 class SpotPriceHistoryExtractor(object):
@@ -64,7 +64,8 @@ def get_timeseries(values, extractor):
     return pandas.Series(y_arr, index=x_arr)
 
 
-def get_cloudwatch_timeseries(cloudwatch_response):
-    datapoints = cloudwatch_response['Datapoints']
+def get_cloudwatch_timeseries(datapoints):
+    if 'Datapoints' in datapoints:
+        datapoints = datapoints['Datapoints']
     extractor = CloudwatchExtractor()
     return get_timeseries(datapoints, extractor)

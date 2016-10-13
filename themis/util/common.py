@@ -106,19 +106,46 @@ def remove_lines_from_string(s, regex):
     return '\n'.join([line for line in s.split('\n') if not re.match(regex, line)])
 
 
-def remove_NaN(obj):
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except Exception:
+        return False
+
+
+def is_NaN(obj, expect_only_numbers=False):
+    if expect_only_numbers and not is_number(obj):
+        return True
+    if obj == 'NaN' or (isinstance(obj, float) and
+            math.isnan(obj) or obj in [float('Inf'), -float('Inf')]):
+        return True
+    return False
+
+
+def remove_NaN(obj, delete_values=True, replacement='NaN', expect_only_numbers=False):
     if isinstance(obj, list):
-        for i in range(0, len(obj)):
-            if isinstance(obj[i], float) and math.isnan(obj[i]):
-                obj[i] = "NaN"
+        i = 0
+        while i < len(obj):
             if is_composite(obj[i]):
-                remove_NaN(obj[i])
+                remove_NaN(obj[i], delete_values, replacement, expect_only_numbers)
+            elif is_NaN(obj[i], expect_only_numbers):
+                if delete_values:
+                    del obj[i]
+                    i -= 1
+                else:
+                    obj[i] = replacement
+            i += 1
     elif isinstance(obj, dict):
-        for key, val in obj.iteritems():
-            if isinstance(val, float) and math.isnan(val):
-                obj[key] = "NaN"
+        for key in list(obj.keys()):
             if is_composite(obj[key]):
-                remove_NaN(obj[key])
+                remove_NaN(obj[key], delete_values, replacement, expect_only_numbers)
+            elif is_NaN(obj[key], expect_only_numbers):
+                if delete_values:
+                    del obj[key]
+                else:
+                    obj[key] = replacement
+    return obj
 
 
 def short_uid():

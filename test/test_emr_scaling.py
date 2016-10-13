@@ -6,11 +6,16 @@ from themis.util import common, aws_common
 from themis.config import *
 from themis.model.emr_model import *
 from constants import *
+import mock.aws_api
 import mock.ganglia
 
 server = None
 
 TEST_CLUSTER_ID = 'testCluster'
+
+
+def setup():
+    mock.aws_api.init_mocks()
 
 
 def mock_cluster_state(spot_nodes=0, od_nodes=0, config=None):

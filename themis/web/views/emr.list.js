@@ -3,7 +3,7 @@
 
   var app = angular.module('app');
 
-  app.controller('emrAutoscaleCtrl', function($scope, appConfig) {
+  app.controller('emrAutoscaleCtrl', function($scope, appConfig, appUtils) {
 
     appConfig.section = 'general';
 
@@ -11,7 +11,7 @@
       if(typeof(oldVal) != "undefined") {
         appConfig.getConfigValue('autoscaling_clusters').then(function(autoscaleClusters) {
           autoscaleClusters = autoscaleClusters.split(/\s*,\s*/);
-          $scope.arrayRemove(autoscaleClusters, $scope.cluster.id);
+          appUtils.arrayRemove(autoscaleClusters, $scope.cluster.id);
           if(newVal) {
             autoscaleClusters.push($scope.cluster.id);
           }

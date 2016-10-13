@@ -1,4 +1,13 @@
 <section id="content">
+
+<header class="aui-page-header">
+  <div class="aui-page-header-inner">
+    <div class="aui-page-header-main">
+      <h1 style="font-size: 24px" id="heading-title">Details for Stream {{streamId}}</h1>
+    </div>
+  </div>
+</header>
+
 <div class="aui-page-panel">
   <div class="aui-page-panel-inner">
     <section class="aui-page-panel-content">
@@ -25,28 +34,24 @@
             <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
               <thead>
                 <tr>
-                  <th ts-criteria="id" id="shard_id">Name</th>
-                  <th ts-criteria="throughput" id="throughput">Throughput</th>
+                  <th ts-criteria="id" id="shard_id">Shard ID</th>
+                  <th ts-criteria="IncomingBytes.average" id="IncomingBytes">Incoming Bytes / min</th>
+                  <th ts-criteria="IncomingRecords.average" id="IncomingRecords">Incoming Records / min</th>
                   <th ts-criteria="actions" id="actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                <tr ng-repeat="value in state.data.shards track by value.id" ts-repeat>
+                <tr ng-repeat="value in state.data.shards_list track by value.id" ts-repeat>
                   <td headers="id">{{value.id}}</td>
-                  <td headers="throughput">{{value.throughput}}</td>
+                  <td headers="throughput">{{appUtils.format_number(value.IncomingBytes.average)}}</td>
+                  <td headers="throughput">{{appUtils.format_number(value.IncomingRecords.average)}}</td>
                   <td headers="actions">n/a</td>
                 </tr>
-                <tr class="summary" ng-hide="!state.data.nodes_list.length">
-                  <td headers="host_name">Total</td>
-                  <td>Σ {{state.data.tasknodes.count.nodes}} TASK</td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td ng-hide="!state.data.is_presto"></td>
-                  <td headers="load_cpu">Ø {{state.data.tasknodes.average.cpu | percentage}}</td>
-                  <td headers="load_mem">Ø {{state.data.tasknodes.average.mem | percentage}}</td>
-                  <td headers="queries">{{state.data.allnodes.sum.queries}}</td>
-                  <td></td>
+                <tr class="summary" ng-hide="!state.data.shards_list.length">
+                  <td headers="id">Total Σ</td>
+                  <td headers="IncomingBytes">{{state.data.total.IncomingBytes.average | number:2}}</td>
+                  <td headers="IncomingRecords">{{state.data.total.IncomingRecords.average | number:2}}</td>
+                  <td headers="actions"></td>
                 </tr>
               </tbody>
             </table>
@@ -68,20 +73,18 @@
               <thead>
                 <tr>
                   <th ts-criteria="timestamp" id="hist_timestamp" ts-default="descending">Time</th>
-                  <th ts-criteria="state.tasknodes.count.nodes" id="hist_nodes">Number of Nodes</th>
-                  <th ts-criteria="state.tasknodes.average.cpu" id="hist_cpu">Ø Task Node CPU</th>
-                  <th ts-criteria="state.tasknodes.average.mem" id="hist_mem">Ø Task Node Memory</th>
-                  <th ts-criteria="state.allnodes.sum.queries" id="hist_queries">Total Queries</th>
+                  <th ts-criteria="state.shards.count" id="hist_shards">Number of Shards</th>
+                  <th ts-criteria="state.stream.IncomingBytes.average" id="hist_cpu">Ø Incoming Bytes</th>
+                  <th ts-criteria="state.stream.IncomingRecords.average" id="hist_mem">Ø Incoming Records</th>
                   <th ts-criteria="action" id="hist_action">Action</th>
                 </tr>
               </thead>
               <tbody>
                 <tr ng-repeat="value in history.data track by value.timestamp" ts-repeat>
                   <td headers="hist_timestamp">{{value.timestamp | datetime}}</td>
-                  <td headers="hist_nodes">{{value.state.tasknodes.count.nodes}}</td>
-                  <td headers="hist_cpu">{{value.state.tasknodes.average.cpu | percentage}}</td>
-                  <td headers="hist_mem">{{value.state.tasknodes.average.mem | percentage}}</td>
-                  <td headers="hist_queries">{{value.state.allnodes.sum.queries}}</td>
+                  <td headers="hist_shards">{{value.state.shards.count}}</td>
+                  <td headers="hist_cpu">{{value.state.stream.IncomingBytes.average | number:2}}</td>
+                  <td headers="hist_mem">{{value.state.stream.IncomingRecords.average | number:2}}</td>
                   <td headers="hist_action">{{value.action}}</td>
                 </tr>
               </tbody>
@@ -97,33 +100,7 @@
           <div ng-hide="history.loading">
             <button class="aui-button aui-button-primary" ng-click="refresh()">Refresh</button>
             <h2>Costs Overview</h2>
-            <table class="aui aui-table aui-table-sortable" id="hosts-table" ts-wrapper>
-              <thead>
-                <tr>
-                  <th ts-criteria="id" id="cost_inst_id" ts-default="descending">Instance ID</th>
-                  <th ts-criteria="start" id="cost_inst_start">Start Time</th>
-                  <th ts-criteria="end" id="cost_inst_end">Terminate Time</th>
-                  <th ts-criteria="hours" id="cost_inst_h">Hours</th>
-                  <th ts-criteria="costs" id="cost_inst_costs">Costs</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr ng-repeat="value in savings.instances track by value.iid" ts-repeat>
-                  <td headers="cost_inst_id">{{value.iid}}</td>
-                  <td headers="cost_inst_start">{{value.start * 1000 | datetime}}</td>
-                  <td headers="cost_inst_end">{{value.end * 1000 | datetime}}</td>
-                  <td headers="cost_inst_h">{{value.hours}} ({{(value.end-value.start) / 60.0 / 60.0 | number:2}})</td>
-                  <td headers="cost_inst_costs">{{value.costs | number:2}}</td>
-                </tr>
-                <tr class="summary" ng-hide="!savings.instances">
-                  <td headers="cost_inst_id">Total</td>
-                  <td headers="cost_inst_start">Σ {{savings.instances.length}} instances</td>
-                  <td headers="cost_inst_end"></td>
-                  <td headers="cost_inst_h">{{savings.hours}}</td>
-                  <td headers="cost_inst_costs">{{savings.costs | number:2}}</td>
-                </tr>
-              </tbody>
-            </table>
+            t.b.a.
           </div>
           <div class="aui panel-centered" ng-show="history.loading">
             <img src="img/loading.gif" alt="loading"/> loading data ...

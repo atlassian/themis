@@ -146,7 +146,7 @@ def get_emr_history(cluster_id):
             - name: 'cluster_id'
               in: path
     """
-    info = database.history_get(cluster_id, 100)
+    info = database.history_get(section=SECTION_EMR, resource=cluster_id, limit=100)
     common.remove_NaN(info)
     return jsonify(results=info)
 
@@ -199,9 +199,10 @@ def get_emr_costs():
     baseline_nodes = (data['baseline_nodes'] if 'baseline_nodes' in data else
         config.get_value(KEY_BASELINE_COMPARISON_NODES, section=SECTION_EMR, resource=cluster_id, default=20))
     baseline_nodes = int(baseline_nodes)
-    info = database.history_get(cluster_id, num_datapoints)
+    info = database.history_get(section=SECTION_EMR, resource=cluster_id, limit=num_datapoints)
     common.remove_NaN(info)
     result = aws_pricing.get_cluster_savings(info, baseline_nodes)
+    common.remove_NaN(result, delete_values=False, replacement=0)
     return jsonify(results=result, baseline_nodes=baseline_nodes)
 
 
@@ -236,7 +237,7 @@ def get_kinesis_state(stream_id):
     return jsonify(info)
 
 
-@app.route('/emr/history/<stream_id>')
+@app.route('/kinesis/history/<stream_id>')
 def get_kinesis_history(stream_id):
     """ Get Kinesis stream state history
         ---
@@ -245,7 +246,7 @@ def get_kinesis_history(stream_id):
             - name: 'stream_id'
               in: path
     """
-    info = database.history_get(stream_id, 100, service='kinesis')
+    info = database.history_get(section=SECTION_KINESIS, resource=stream_id, limit=100)
     common.remove_NaN(info)
     return jsonify(results=info)
 
