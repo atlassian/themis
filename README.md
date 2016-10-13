@@ -4,9 +4,13 @@
 [![PyPI License](https://img.shields.io/pypi/l/themis-autoscaler.svg)](https://img.shields.io/pypi/l/themis-autoscaler.svg)
 [![Code Climate](https://codeclimate.com/github/atlassian/themis/badges/gpa.svg)](https://codeclimate.com/github/atlassian/themis)
 
-# Themis - Autoscaling EMR Clusters on AWS
+# Themis - Autoscaling EMR Clusters and Kinesis Streams on AWS
 
-Themis is an autoscaler for Elastic Map Reduce (EMR) clusters on Amazon Web Services.
+Themis is a framework for autoscaling Cloud infrastructure on Amazon Web Services (AWS).
+
+It currently supports autoscaling for the following services:
+* Elastic Map Reduce (EMR) clusters
+* Kinesis streams
 
 Themis in Greek mythology is the goddess of divine order, justice, and fairness, just like
 the Themis autoscaler whose job is to continuously maintain a tradeoff between costs and
@@ -88,29 +92,27 @@ The test framework automatically collects and reports test coverage metrics (lin
 
 ```
 Name                         Stmts   Miss  Cover   Missing
-----------------------------------------------------------
-themis.py                        0      0   100%
-themis/config.py                61     32    48%   33-72
-themis/constants.py             16      0   100%
-themis/scaling.py                0      0   100%
-themis/scaling/server.py       172     98    43%   24, 28-31, 42-44, 55-57, 65, 73-74, 85-88, ...
-themis/util.py                   0      0   100%
-themis/util/aws_common.py      112     45    60%   20, 26-29, 47, 50-51, 62, 65-69, 80-81, 94-96, ...
-themis/util/aws_pricing.py     187     71    62%   20-40, 71, 74, 77, 83-87, 90-91, 94-105, ...
-themis/util/common.py          166     16    90%   45, 54, 79, 85, 91, 101, 115, 154-156, 181, 195-200
-themis/util/expr.py             28      0   100%
-themis/util/monitoring.py      296     82    72%   61, 87, 89, 113, 121-130, 142, 149, 160, 166-177, ...
-themis/util/remote.py           29      6    79%   18-20, 29, 33, 39
-----------------------------------------------------------
-TOTAL                         1067    350    67%
+-----------------------------------------------------------------------
+themis/config.py                            165     21    87%   217, 231-240, 242, 260-270
+themis/model/aws_model.py                    46      3    93%   50, 74, 77
+themis/model/emr_model.py                    25      3    88%   17-18, 22
+themis/model/kinesis_model.py                65     27    58%   15-17, 20-22, 25, 46-48, 54-55, 68-73, 76-77
+themis/model/resources_model.py              17      4    76%   21-24
+themis/monitoring/database.py                44     30    32%   15-19, 23-27, 29-37, 41-47, 52-60
+themis/monitoring/kinesis_monitoring.py     119     31    74%   18-30, 41, 59-60, 64, 66-67, 111-115, 142
+themis/monitoring/resources.py               45     17    62%   23-24, 30, 35-39, 46, 51-61
+themis/scaling/emr_scaling.py               173     57    67%   27, 145, 150, 162-170, 174-175, 179-188
+themis/scaling/kinesis_scaling.py            90     43    52%   14-15, 19, 23, 25-28, 30-39, 44, 62-66, 68-69
+...
+-----------------------------------------------------------------------
+TOTAL                                      1833    367    80%   
 ----------------------------------------------------------------------
-Ran 7 tests in 43.473s
+Ran 13 tests in 16.522s
 
 OK
 ```
 
-The set of tests is currently rather small, but we seek to improve the test coverage as the
-tool evolves.
+We seek to further improve the test coverage as the framework evolves.
 
 ## Configuration
 
@@ -123,19 +125,37 @@ aws configure
 ```
 
 For the configuration of the autoscaler itself, there are a number of settings that you can
-configure directly in the Web UI (see table below):
+configure directly in the Web UI.
+
+### Global configuration settings
 
 Configuration Key					| 	Description
 ------------------------------------|--------------------------------
 `autoscaling_clusters`				|	Comma-separated list of cluster IDs to auto-scale
-`downscale_expr`					|	Trigger cluster downscaling by the number of nodes this expression evaluates to
 `loop_interval_secs`				|	Loop interval seconds
 `monitoring_interval_secs`			|	Time period (seconds) of historical monitoring data to consider for scaling decisions
-`preferred_upscale_instance_market`	|	Whether to prefer increasing the pool of SPOT instances or ON_DEMAND instances (if both exist in the cluster)	
 `ssh_keys`							|	Comma-separated list of SSH public key files to use for connecting to the clusters.
+
+
+### EMR configuration (per cluster)
+
+Configuration Key					| 	Description
+------------------------------------|--------------------------------
+`baseline_nodes`					|	Number of baseline nodes to use for comparing costs and calculating savings
+`custom_domain_name`				|	Custom domain name to apply to all nodes in cluster (override aws-cli result)
+`downscale_expr`					|	Trigger cluster downscaling by the number of nodes this expression evaluates to
+`monitoring_interval_secs`			|	Time period (seconds) of historical monitoring data to consider for scaling decisions
+`group_or_preferred_market`			|	Comma separated list of task instance groups and/or instance markets to increase/decrease depending on order, e.g., "ig-12345,SPOT,ON_DEMAND" means to autoscale task group ig-12345 if available, otherwise any SPOT group, or if necessary ON_DEMAND groups
 `time_based_scaling`				|	A JSON string that maps date regular expressions to minimum number of nodes. Dates to match against are formatted as "%a %Y-%m-%d %H:%M:%S". Example config: {"(Mon|Tue|Wed|Thu|Fri).*01:.*:.*": 1}
 `upscale_expr`						|	Trigger cluster upscaling by the number of nodes this expression evaluates to
 
+### Kinesis configuration (per stream)
+
+Configuration Key					| 	Description
+------------------------------------|--------------------------------
+`enable_enhanced_monitoring`		|	Enable enhanced monitoring. A value of "true" enables per-shard monitoring with ShardLevelMetrics=ALL
+`stream_upscale_expr`				|	Trigger stream upscaling by the number of shards this expression evaluates to
+`stream_downscale_expr`				|	Trigger stream downscaling by the number of shards this expression evaluates to
 
 ## Running
 
@@ -151,7 +171,8 @@ make server
 
 ## Change Log
 
-* v0.1.15: Initial support for auto-scaling Kinesis streams
+* v0.2.0: Kinesis autoscaling; some fixes in UI; extend tests; update documentation
+* v0.1.15: Initial version of auto-scaling Kinesis streams; first release tag
 * v0.1.14: Add DSL support for max,min,sum of CPU and RAM in EMR autoscaling
 * v0.1.12: Add DSL support for preferred instance market config; allow to configure specific task group
 * v0.1.9: Add coveralls badge to README
@@ -162,7 +183,7 @@ make server
 
 ## Contributors
 
-The following developers have contributed to Themis (in order of appearance of their first contribution):
+The following developers have actively contributed to Themis (in order of appearance of their first contribution):
 
 * [whummer](https://github.com/whummer) (Waldemar Hummer)
 * [FJK-NZ](https://github.com/FJK-NZ) (Feliks Krawczyk)

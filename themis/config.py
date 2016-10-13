@@ -177,7 +177,7 @@ class KinesisStreamConfiguration(ConfigObject):
         'enable_enhanced_monitoring': """Enable enhanced monitoring. A value of "true" \
             enables per-shard monitoring with ShardLevelMetrics=ALL""",
         'stream_upscale_expr': 'Trigger stream upscaling by the number of shards this expression evaluates to',
-        'stream_downscale_expr': 'Trigger stream downscaling by the number of nodes this expression evaluates to'
+        'stream_downscale_expr': 'Trigger stream downscaling by the number of shards this expression evaluates to'
     }
 
     def __init__(self):

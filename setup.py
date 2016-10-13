@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     setup(
         name='themis-autoscaler',
-        version='0.1.15',
+        version='0.2.0',
         description='Themis is an autoscaler for Elastic Map Reduce (EMR) clusters on Amazon Web Services.',
         author='Atlassian and others',
         maintainer='Waldemar Hummer',
