@@ -22,7 +22,7 @@ class KinesisStream(Scalable, Monitorable):
         return self.id in stream_ids
 
     def perform_scaling(self, params=None):
-        themis.scaling.perform_scaling(self)
+        themis.scaling.kinesis_scaling.perform_scaling(self)
 
     @classmethod
     def from_json(cls, j):

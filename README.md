@@ -41,6 +41,16 @@ A Web user interface (UI) is available to display the key data. The rules for au
 
 ![Autoscaling Example](https://raw.githubusercontent.com/atlassian/themis/master/themis/web/img/scaling.png)
 
+## Running in Docker
+
+If you simply want to spin up a Themis instance in Docker, run the following command:
+
+```
+docker run -it -p 8080:8080 -e AWS_ACCESS_KEY_ID=... -e AWS_SECRET_ACCESS_KEY=... atlassianlabs/themis
+```
+
+Make sure to set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables properly. The AWS region defaults to `us-east-1`, you can override it by passing in the `AWS_DEFAULT_REGION` environment variable.
+
 ## Requirements
 
 * `make`
@@ -171,6 +181,7 @@ make server
 
 ## Change Log
 
+* v0.2.1: Add Dockerfile, publish image to Docker hub
 * v0.2.0: Kinesis autoscaling; some fixes in UI; extend tests; update documentation
 * v0.1.15: Initial version of auto-scaling Kinesis streams; first release tag
 * v0.1.14: Add DSL support for max,min,sum of CPU and RAM in EMR autoscaling

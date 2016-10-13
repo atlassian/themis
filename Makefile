@@ -1,5 +1,6 @@
 dir = $(shell pwd)
 VENV_DIR = .venv
+IMAGE_NAME = atlassianlabs/themis
 # VENV_RUN = . $(VENV_DIR)/bin/activate
 # TODO: there is a bug in some virtualenv environments, we need to manually include this path here
 VENV_RUN = . $(VENV_DIR)/bin/activate && export PYTHONPATH=.venv/lib64/python2.7/dist-packages
@@ -25,8 +26,14 @@ npm:               ## Install node.js/npm dependencies
 publish:           ## Publish the library to PyPi
 	($(VENV_RUN); ./setup.py sdist upload)
 
-coveralls:
+coveralls:         ## Publish coveralls metrics
 	($(VENV_RUN); coveralls)
+
+docker-build:      ## Build the Docker image
+	@docker build -t $(IMAGE_NAME) .
+
+docker-push:       ## Push image to Docker hub
+	docker push $(IMAGE_NAME)
 
 test:              ## Run tests
 	($(VENV_RUN) && PYTHONPATH=$(dir)/test:$$PYTHONPATH nosetests --with-coverage --with-xunit --cover-package=themis test/) && \

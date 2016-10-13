@@ -25,7 +25,7 @@
           <tbody>
             <tr ng-repeat="stream in streams track by stream.id" ts-repeat ng-controller="kinesisAutoscaleCtrl">
               <td headers="stream_name"><a ui-sref="kinesis.details({ streamId: stream.id })">{{stream.id}}</a></td>
-              <td headers="stream_shards">{{stream.shards_list.length}}</td>
+              <td headers="stream_shards">{{stream.shards.length}}</td>
               <td headers="stream_enhanced_monitoring">
                   <aui-toggle checked="stream.monitoring" label="'monitoring' + stream.id"></aui-toggle>
               </td>
