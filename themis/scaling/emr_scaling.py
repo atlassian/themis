@@ -108,7 +108,7 @@ def get_minimum_nodes(date, cluster_id):
                 nodes_to_return = num_nodes
     # no match revert to default
     if nodes_to_return is None:
-        return DEFAULT_MIN_TASK_NODES
+        return emr_monitoring.DEFAULT_MIN_TASK_NODES
     return nodes_to_return
 
 

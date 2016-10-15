@@ -174,9 +174,11 @@ def restart_emr_node():
     data = json.loads(request.data)
     cluster_id = data['cluster_id']
     node_host = data['node_host']
-    for c_id, details in CLUSTERS.iteritems():
+    app_config = config.get_config()
+    clusters = app_config.emr
+    for c_id, details in clusters.iteritems():
         if c_id == cluster_id:
-            cluster_ip = details['ip']
+            cluster_ip = details.ip
             tasknodes_group = aws_common.get_instance_group_for_node(cluster_id, node_host)
             if tasknodes_group:
                 server.terminate_node(cluster_ip, node_host, tasknodes_group)
