@@ -181,6 +181,7 @@ def select_tasknode_group(tasknodes_groups, cluster_id, info=None):
     if len(tasknodes_groups) == 1:
         return tasknodes_groups[0]
     preferred_list = get_node_groups_or_preferred_markets(cluster_id, info=info)
+    LOG.info('List of preferred TASK node groups: %s' % preferred_list)
     for preferred in preferred_list:
         for group in tasknodes_groups:
             if preferred in [group['Market'], group['id']]:

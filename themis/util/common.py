@@ -9,6 +9,7 @@ import json
 import math
 import uuid
 import logging
+import decimal
 import pyhive.presto
 from datetime import datetime, timedelta
 from collections import namedtuple
@@ -56,9 +57,11 @@ def clean_cache():
 
 
 def setup_logging(log_file=None, format='%(asctime)s %(levelname)s: %(name)s: %(message)s'):
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger('botocore').setLevel(logging.WARNING)
     if log_file:
         logging.basicConfig(filename=log_file, level=logging.INFO, format=format)
-        logging.getLogger('werkzeug').setLevel(logging.WARN)
         formatter = logging.Formatter(format)
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
@@ -92,6 +95,27 @@ def save_file(file, content):
 
 def save_json_file(file, content):
     save_file(file, json.dumps(content))
+
+
+def json_defaults(obj):
+    if isinstance(obj, decimal.Decimal):
+        if obj % 1 > 0:
+            return float(obj)
+        else:
+            return long(obj)
+    if isinstance(obj, datetime):
+        TIMESTAMP_FORMAT_MS = '%Y-%m-%dT%H:%M:%S.%fZ'
+        return obj.strftime(TIMESTAMP_FORMAT_MS)
+    return obj
+
+
+def json_fix(data):
+    """
+    Fix common JSON encoding issues. E.g., if a dict contains decimal.Decimal
+    values, it cannot be dumped as JSON. This method creates a copy of the given
+    dict and returns a cleaned-up version that should be JSON serializable.
+    """
+    return json.loads(json.dumps(data, default=json_defaults))
 
 
 def is_composite(o):
@@ -164,6 +188,38 @@ def inject_aws_endpoint(cmd):
     return cmd
 
 
+def run_func(func, cache_duration_secs=0, **kwargs):
+    return run_cached(func, cache_duration_secs=cache_duration_secs, **kwargs)
+
+
+def run_cached(func, cache_duration_secs=0, **kwargs):
+    if cache_duration_secs <= 0:
+        return func(**kwargs)
+    hash = md5(func.__name__ + str(kwargs))
+    cache_file = CACHE_FILE_PATTERN.replace('*', '%s') % hash
+    if os.path.isfile(cache_file):
+        # check file age
+        mod_time = os.path.getmtime(cache_file)
+        time_now = now()
+        if mod_time > (time_now - cache_duration_secs):
+            f = open(cache_file)
+            result = f.read()
+            f.close()
+            return result
+    result = func(**kwargs)
+    f = open(cache_file, 'w+')
+    if not isinstance(result, basestring):
+        try:
+            result = json.dumps(result)
+        except Exception, e:
+            result = json_fix(result)
+            result = json.dumps(result)
+    f.write(result)
+    f.close()
+    clean_cache()
+    return result
+
+
 def run(cmd, cache_duration_secs=0, log_error=False, retries=0, sleep=2, backoff=1.4):
     def do_run(cmd):
         try:
@@ -187,25 +243,8 @@ def run(cmd, cache_duration_secs=0, log_error=False, retries=0, sleep=2, backoff
                 return run(cmd, cache_duration_secs, log_error, retries - 1, sleep * backoff, backoff)
             raise e
     cmd = inject_aws_endpoint(cmd)
-    if cache_duration_secs <= 0:
-        return do_run(cmd)
-    hash = md5(cmd)
-    cache_file = CACHE_FILE_PATTERN.replace('*', '%s') % hash
-    if os.path.isfile(cache_file):
-        # check file age
-        mod_time = os.path.getmtime(cache_file)
-        time_now = now()
-        if mod_time > (time_now - cache_duration_secs):
-            f = open(cache_file)
-            result = f.read()
-            f.close()
-            return result
-    result = do_run(cmd)
-    f = open(cache_file, 'w+')
-    f.write(result)
-    f.close()
-    clean_cache()
-    return result
+    kwargs = {'cmd': cmd}
+    return run_cached(do_run, cache_duration_secs=cache_duration_secs, **kwargs)
 
 
 def md5(string):
@@ -261,13 +300,14 @@ def parallelize(array_or_dict, func):
 
 
 def get_start_and_end(diff_secs, format="%m/%d/%Y %H:%M", escape=True):
-    d = datetime.utcnow()
-    start_time = (d + timedelta(seconds=-diff_secs))
-    start_time = start_time.strftime(format)
-    end_time = d.strftime(format)
-    if escape:
-        start_time = urllib.quote_plus(start_time)
-        end_time = urllib.quote_plus(end_time)
+    end_time = datetime.utcnow()
+    start_time = (end_time + timedelta(seconds=-diff_secs))
+    if isinstance(format, basestring):
+        start_time = start_time.strftime(format)
+        end_time = end_time.strftime(format)
+        if escape:
+            start_time = urllib.quote_plus(start_time)
+            end_time = urllib.quote_plus(end_time)
     return [start_time, end_time]
 
 

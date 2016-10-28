@@ -137,7 +137,7 @@ def get_cluster_load(cluster, nodes=None, monitoring_interval_secs=MONITORING_IN
             load = get_node_load(cluster, host, monitoring_interval_secs)
             result[host] = load
         except Exception, e:
-            print(traceback.format_exc())
+            LOG.warning(traceback.format_exc())
             LOG.warning("Unable to get load for node %s: %s" % (host, e))
             result[host] = {}
 
@@ -334,7 +334,7 @@ def collect_info(cluster, nodes=None, config=None,
         return result
 
     except Exception, e:
-        # print(traceback.format_exc())
+        print(traceback.format_exc())
         LOG.warning("Error getting monitoring info for cluster %s: %s" % (cluster.id, e))
         return {}
 
@@ -352,13 +352,30 @@ def update_resources(resource_config):
     return resource_config
 
 
+def list_all_clusters():
+    emr_client = aws_common.connect_emr()
+    result = []
+    marker = None
+    for i in range(0, 10):
+        kwargs = {}
+        if marker:
+            kwargs['Marker'] = marker
+        out = emr_client.list_clusters(**kwargs)
+        result.extend(out['Clusters'])
+        marker = out.get('Marker')
+        if not marker:
+            break
+    return result
+
+
 def init_emr_config(run_parallel=False):
     cfg = ResourcesConfiguration()
 
+    emr_client = aws_common.connect_emr()
+
     def init_emr_cluster_config(c):
         if c['Status']['State'][0:10] != 'TERMINATED':
-            out1 = run('aws emr describe-cluster --cluster-id=%s' % c['Id'], retries=1)
-            out1 = json.loads(out1)
+            out1 = emr_client.describe_cluster(ClusterId=c['Id'])
             cluster_details = out1['Cluster']
             cluster = themis.model.emr_model.EmrCluster()
             cluster.id = c['Id']
@@ -376,14 +393,11 @@ def init_emr_config(run_parallel=False):
             if has_ganglia:
                 LOG.info('Getting details for EMR cluster %s' % cluster.id)
                 # get private IP address of cluster
-                for g in cluster_details['InstanceGroups']:
+                group_details = emr_client.list_instance_groups(ClusterId=c['Id'])
+                for g in group_details['InstanceGroups']:
                     if g['InstanceGroupType'] == 'MASTER':
-                        cmd = ('aws emr list-instances --cluster-id=%s --instance-states ' +
-                            'AWAITING_FULFILLMENT PROVISIONING BOOTSTRAPPING RUNNING') % c['Id']
-                        out2 = run(cmd, retries=6)
-                        if not out2:
-                            LOG.warning("No output for command '%s'" % cmd)
-                        out2 = json.loads(out2)
+                        out2 = emr_client.list_instances(ClusterId=c['Id'],
+                            InstanceStates=['AWAITING_FULFILLMENT', 'PROVISIONING', 'BOOTSTRAPPING', 'RUNNING'])
                         for inst in out2['Instances']:
                             if inst['InstanceGroupId'] == g['Id']:
                                 cluster.ip = inst['PrivateDnsName']
@@ -392,11 +406,10 @@ def init_emr_config(run_parallel=False):
                 LOG.info('Ignoring cluster %s (Ganglia not installed)' % cluster.id)
 
     # load EMR resources
-    out = run('aws emr list-clusters')
-    out = json.loads(out)
+    clusters = list_all_clusters()
     if run_parallel:
-        common.parallelize(out['Clusters'], init_emr_cluster_config)
+        common.parallelize(clusters, init_emr_cluster_config)
     else:
-        for c in out['Clusters']:
+        for c in clusters:
             init_emr_cluster_config(c)
     return cfg

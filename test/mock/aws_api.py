@@ -15,6 +15,7 @@ num_od_nodes = 2
 server = None
 
 TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+TIMESTAMP_FORMAT_MS = '%Y-%m-%dT%H:%M:%S.%fZ'
 
 
 def init_mocks():
@@ -63,17 +64,18 @@ def parse_time(time, format=TIMESTAMP_FORMAT):
 
 def mock_aws_api(method, path, req, config={}):
     result = {}
-    # print(req.headers)
     target = req.headers.get('X-Amz-Target')
-    print(target)
-    if path == 'aws/cloudwatch/get-metric-statistics':
+    # print(target)
+    # print(path)
+    metric_name = req.form.get('MetricName') if req.form else None
+    namespace = req.form.get('Namespace') if req.form else None
+    if path == 'aws/cloudwatch/get-metric-statistics' or (metric_name and namespace):
         action = req.form.get('Action')
         if action == 'GetMetricStatistics':
-            metric_name = req.form.get('MetricName')
             stats = []
             dimensions = {}
-            start_time = parse_time(req.form.get('StartTime'))
-            end_time = parse_time(req.form.get('EndTime'))
+            start_time = parse_time(req.form.get('StartTime'), format=TIMESTAMP_FORMAT_MS)
+            end_time = parse_time(req.form.get('EndTime'), format=TIMESTAMP_FORMAT_MS)
             period = int(req.form.get('Period'))
             datapoints = ''
 

@@ -6,7 +6,7 @@
       <h1 style="font-size: 24px" id="heading-title">Details for Cluster {{clusterId}}</h1>
       <div id="savings" style="margin-top: 10px; position: absolute; right: 20px; top: 0px; width: 170px; padding: 5px; padding-left: 50px;"
         class="aui-message aui-message-success" ng-show="savings.saved">
-          <div ng-show="!savings.loading" style="font-weight: bold; float: left;"> {{savings.saved | currency:'USD':4}} <br/>
+          <div ng-show="!savings.loading" style="font-weight: bold; float: left;"> {{savings.saved | currency:'USD ':4}} <br/>
             <span style="font-size: 10px; line-height: 13px;">savings in the last {{savings.duration | duration}},<br/>
             compared to baseline of {{baseline_nodes}} nodes
           </span>

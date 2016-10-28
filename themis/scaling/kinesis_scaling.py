@@ -1,6 +1,6 @@
 import logging
 import themis.config
-from themis.util import expr
+from themis.util import expr, aws_common
 from themis.constants import *
 from themis.monitoring import database, kinesis_monitoring
 import themis.monitoring.resources
@@ -91,21 +91,22 @@ def perform_scaling(kinesis_stream):
     downscale = get_downscale_shards(kinesis_stream)
     upscale = get_upscale_shards(kinesis_stream)
     action = 'NOTHING'
+    kinesis_client = aws_common.connect_kinesis()
     try:
         if downscale:
             action = 'DOWNSCALE(-%s)' % len(downscale)
             for shard_pair in downscale:
                 LOG.info('Merging shards %s and %s of Kinesis stream %s' %
                     (shard_pair.shard1.id, shard_pair.shard2.id, kinesis_stream.id))
-                cmd = run('aws kinesis merge-shards --stream-name %s --shard-to-merge %s --adjacent-shard-to-merge %s'
-                    % (kinesis_stream.id, shard_pair.shard1.id, shard_pair.shard2.id))
+                kinesis_client.merge_shards(StreamName=kinesis_stream.id,
+                    ShardToMerge=shard_pair.shard1.id, AdjacentShardToMerge=shard_pair.shard2.id)
         elif upscale:
             action = 'UPSCALE(+%s)' % len(upscale)
             for shard in upscale:
                 LOG.info('Splitting shard %s of Kinesis stream %s' % (shard.id, kinesis_stream.id))
                 new_start_key = shard.center_key()
-                cmd = run('aws kinesis split-shard --stream-name %s --shard-to-split %s --new-starting-hash-key %s'
-                    % (kinesis_stream.id, shard.id, new_start_key))
+                kinesis_client.split_shard(StreamName=kinesis_stream.id,
+                    ShardToSplit=shard.id, NewStartingHashKey=new_start_key)
     except Exception, e:
         LOG.warning('Unable to re-scale stream %s: %s' % (kinesis_stream.id, e))
     if downscale or upscale:
