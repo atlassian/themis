@@ -5,7 +5,7 @@ import themis.model.kinesis_model
 from themis.model.aws_model import *
 from themis.config import *
 from themis.util.common import *
-from themis.util import timeseries, math_util
+from themis.util import timeseries, math_util, aws_common
 
 # logger
 LOG = get_logger(__name__)
@@ -43,12 +43,11 @@ def update_resources(resource_config):
 
 
 def get_cloudwatch_metrics(metric, namespace, dimensions, time_window=600, period=60):
-    start_time, end_time = get_start_and_end(diff_secs=time_window, format="%Y-%m-%dT%H:%M:%S", escape=False)
+    start_time, end_time = get_start_and_end(diff_secs=time_window, format=None)
     metric_names = metric if isinstance(metric, basestring) else ','.join(metric)
-    cmd = ("""aws cloudwatch get-metric-statistics --namespace=%s --metric-name=%s \
-         --start-time=%s --end-time=%s --period=%s --statistics=Average --dimensions %s""" %
-         (namespace, metric_names, start_time, end_time, period, dimensions))
-    datapoints = json.loads(run(cmd))
+    cloudwatch_client = aws_common.connect_cloudwatch()
+    datapoints = cloudwatch_client.get_metric_statistics(Namespace=namespace, MetricName=metric_names,
+        StartTime=start_time, EndTime=end_time, Period=period, Dimensions=dimensions, Statistics=['Average'])
     datapoints = datapoints['Datapoints']
     return datapoints
 
@@ -56,19 +55,19 @@ def get_cloudwatch_metrics(metric, namespace, dimensions, time_window=600, perio
 def enable_shard_monitoring(stream, metrics='ALL'):
     if not isinstance(stream, basestring):
         stream = stream.id
-    cmd = 'aws kinesis enable-enhanced-monitoring --stream-name %s --shard-level-metrics %s' % (stream, metrics)
-    run(cmd)
+    kinesis_client = aws_common.connect_kinesis()
+    return kinesis_client.enable_enhanced_monitoring(StreamName=stream, ShardLevelMetrics=metrics)
 
 
 def disable_shard_monitoring(stream, metrics='ALL'):
     if not isinstance(stream, basestring):
         stream = stream.id
-    cmd = 'aws kinesis disable-enhanced-monitoring --stream-name %s --shard-level-metrics %s' % (stream, metrics)
-    run(cmd)
+    kinesis_client = aws_common.connect_kinesis()
+    return kinesis_client.disable_enhanced_monitoring(StreamName=stream, ShardLevelMetrics=metrics)
 
 
 def get_kinesis_cloudwatch_metrics(stream, metric, shard=None):
-    dimensions = 'Name=StreamName,Value=%s' % stream.id
+    dimensions = [{'Name': 'StreamName', 'Value': stream.id}]
     if shard:
         shard = shard if isinstance(shard, basestring) else shard.id
     return get_cloudwatch_metrics(metric=metric, namespace='AWS/Kinesis', dimensions=dimensions)
@@ -123,8 +122,8 @@ def collect_info(stream, monitoring_interval_secs=600, config=None):
 
 def retrieve_stream_details(stream_name):
     LOG.info('Getting details for Kinesis stream %s' % stream_name)
-    out = run('aws kinesis describe-stream --stream-name %s' % stream_name)
-    out = json.loads(out)
+    kinesis_client = aws_common.connect_kinesis()
+    out = kinesis_client.describe_stream(StreamName=stream_name)
     stream_shards = out['StreamDescription']['Shards']
     stream = themis.model.kinesis_model.KinesisStream(stream_name)
     num_shards = len(stream_shards)
@@ -146,8 +145,8 @@ def init_kinesis_config(run_parallel=False):
         cfg.kinesis.append(stream_config)
 
     # load Kinesis streams
-    out = run('aws kinesis list-streams')
-    out = json.loads(out)
+    kinesis_client = aws_common.connect_kinesis()
+    out = kinesis_client.list_streams()
     if run_parallel:
         common.parallelize(out['StreamNames'], init_kinesis_stream_config)
     else:

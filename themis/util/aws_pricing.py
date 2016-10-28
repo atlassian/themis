@@ -6,6 +6,7 @@ import math
 import time
 import subprocess
 from scipy import integrate, interpolate
+from themis.util import aws_common
 from themis.util.common import *
 from themis.util.exceptions import *
 
@@ -21,6 +22,7 @@ def get_short_zone(zone):
     return zone
 
 
+# TODO check if this method is still used?
 def get_spot_history(zone, type):
     d = date.today()
     format = "%Y-%m-%dT00:00:00"

@@ -1,9 +1,11 @@
 import re
 import json
 import logging
+import boto3
+import os
 from themis import config, constants
 from themis.config import SECTION_EMR
-from themis.util.common import run, remove_lines_from_string, get_logger
+from themis.util.common import run_func, remove_lines_from_string, get_logger
 from themis.util.common import CURL_CONNECT_TIMEOUT, STATIC_INFO_CACHE_TIMEOUT, QUERY_CACHE_TIMEOUT
 from themis.util.remote import run_ssh
 # constants
@@ -24,8 +26,41 @@ INVALID_CONFIG_VALUE = '_invalid_value_to_avoid_restart_'
 CLUSTER_TYPE_PRESTO = 'Presto'
 CLUSTER_TYPE_HIVE = 'Hive'
 
+# Define local test endpoints
+TEST_ENDPOINTS = {}
+
 # logger
 LOG = get_logger(__name__)
+
+
+def init_aws_cli():
+    endpoint_url = os.environ.AWS_ENDPOINT_URL
+    if endpoint_url:
+        TEST_ENDPOINTS['emr'] = endpoint_url
+        TEST_ENDPOINTS['kinesis'] = endpoint_url
+        TEST_ENDPOINTS['cloudwatch'] = endpoint_url
+        TEST_ENDPOINTS['ec2'] = endpoint_url
+
+
+def connect_emr():
+    return connect_to_service('emr')
+
+
+def connect_kinesis():
+    return connect_to_service('kinesis')
+
+
+def connect_cloudwatch():
+    return connect_to_service('cloudwatch')
+
+
+def connect_ec2():
+    return connect_to_service('ec2')
+
+
+def connect_to_service(service):
+    endpoint_url = TEST_ENDPOINTS.get(service)
+    return boto3.client(service, endpoint_url=endpoint_url)
 
 
 def ip_to_hostname(ip, domain_name):
@@ -37,18 +72,21 @@ def hostname_to_ip(host):
 
 
 def get_instance_by_ip(ip):
-    cmd = 'aws ec2 describe-instances --filters Name=private-ip-address,Values=%s' % ip
-    result = run(cmd, STATIC_INFO_CACHE_TIMEOUT)
+    ec2_client = connect_ec2()
+    result = run_func(ec2_client.describe_instances,
+        Filters=[{'Name': 'private-ip-address', 'Values': [ip]}],
+        cache_duration_secs=STATIC_INFO_CACHE_TIMEOUT)
     result = json.loads(result)
     return result['Reservations'][0]['Instances'][0]
 
 
 def get_instance_groups(cluster_id):
-    cmd = 'aws emr describe-cluster --cluster-id=%s' % cluster_id
-    result = run(cmd, QUERY_CACHE_TIMEOUT)
+    emr_client = connect_emr()
+    result = run_func(emr_client.list_instance_groups, ClusterId=cluster_id,
+        cache_duration_secs=QUERY_CACHE_TIMEOUT)
     result = json.loads(result)
     result_map = {}
-    for group in result['Cluster']['InstanceGroups']:
+    for group in result['InstanceGroups']:
         group_type = group['InstanceGroupType']
         if group_type not in result_map:
             result_map[group_type] = []
@@ -90,9 +128,10 @@ def get_instance_group_for_node(cluster_id, node_host):
 
 
 def get_cluster_nodes(cluster_id):
-    cmd = ('aws emr list-instances --cluster-id=%s --instance-states ' +
-        'AWAITING_FULFILLMENT PROVISIONING BOOTSTRAPPING RUNNING') % cluster_id
-    result = run(cmd, cache_duration_secs=QUERY_CACHE_TIMEOUT, retries=1)
+    emr_client = connect_emr()
+    result = run_func(emr_client.list_instances, ClusterId=cluster_id,
+        InstanceStates=['AWAITING_FULFILLMENT', 'PROVISIONING', 'BOOTSTRAPPING', 'RUNNING'],
+        cache_duration_secs=QUERY_CACHE_TIMEOUT)
     result = json.loads(result)
     result = result['Instances']
 
@@ -128,18 +167,24 @@ def get_all_task_nodes(cluster_id, cluster_ip):
 
 def terminate_task_node(instance_group_id, instance_id):
     # terminate instance
-    cmd = ('aws emr modify-instance-groups --instance-groups ' +
-        'InstanceGroupId=%s,EC2InstanceIdsToTerminate=%s') % (instance_group_id, instance_id)
-    LOG.info(cmd)
-    run(cmd)
+    emr_client = connect_emr()
+    LOG.info('Terminate instance %s of instance group %s' % (instance_id, instance_group_id))
+    result = emr_client.modify_instance_groups(InstanceGroups=[
+        {'InstanceGroupId': instance_group_id, 'EC2InstanceIdsToTerminate': [instance_id]}
+    ])
+    return result
 
 
 def spawn_task_node(instance_group_id, current_size, additional_nodes=1):
-    # terminate instance
-    cmd = ('aws emr modify-instance-groups --instance-groups InstanceGroupId=%s,' +
-        'InstanceCount=%s') % (instance_group_id, current_size + additional_nodes)
-    LOG.info(cmd)
-    run(cmd)
+    # start new instance
+    emr_client = connect_emr()
+    new_size = current_size + additional_nodes
+    LOG.info('Increase instances of instance group %s from %s to %s' %
+        (instance_group_id, current_size, new_size))
+    result = emr_client.modify_instance_groups(InstanceGroups=[
+        {'InstanceGroupId': instance_group_id, 'InstanceCount': new_size}
+    ])
+    return result
 
 
 def is_presto_cluster(cluster):

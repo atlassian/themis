@@ -36,7 +36,7 @@ docker-push:       ## Push image to Docker hub
 	docker push $(IMAGE_NAME)
 
 test:              ## Run tests
-	($(VENV_RUN) && PYTHONPATH=$(dir)/test:$$PYTHONPATH nosetests --with-coverage --with-xunit --cover-package=themis test/) && \
+	($(VENV_RUN) && PYTHONPATH=$(dir)/test:$$PYTHONPATH nosetests --nocapture --no-skip --with-coverage --with-xunit --cover-package=themis test/) && \
 	make lint
 
 lint:              ## Run code linter to check code style
