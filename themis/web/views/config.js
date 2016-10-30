@@ -7,6 +7,7 @@
 
     var client = restClient;
     appConfig.section = 'general';
+    $scope.saving = false;
 
     $scope.load = function() {
       $scope.loading = true;
@@ -24,12 +25,15 @@
 
     $scope.save = function() {
       /* load config */
+      $scope.saving = true;
       appConfig.setConfig($scope.config)
       .then(function(config) {
         $scope.$apply(function(){
+          $scope.saving = false;
           $scope.config = config;
         });
       }, function(err) {
+        $scope.saving = false;
         console.log(err);
       });
     };

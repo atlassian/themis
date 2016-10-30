@@ -79,7 +79,7 @@ def get_largest_shard(stream):
 
 
 def add_history_entry(stream, state, action):
-    database.history_add(section=SECTION_KINESIS, resource=stream.id, state=state, action=action)
+    return database.history_add(section=SECTION_KINESIS, resource=stream.id, state=state, action=action)
 
 
 def save_modified_stream(stream):
@@ -91,7 +91,8 @@ def perform_scaling(kinesis_stream):
     downscale = get_downscale_shards(kinesis_stream)
     upscale = get_upscale_shards(kinesis_stream)
     action = 'NOTHING'
-    kinesis_client = aws_common.connect_kinesis()
+    role = kinesis_monitoring.get_iam_role_for_stream(kinesis_stream)
+    kinesis_client = aws_common.connect_kinesis(role=role)
     try:
         if downscale:
             action = 'DOWNSCALE(-%s)' % len(downscale)
@@ -112,7 +113,8 @@ def perform_scaling(kinesis_stream):
     if downscale or upscale:
         save_modified_stream(kinesis_stream)
     state = kinesis_stream.monitoring_data
-    add_history_entry(kinesis_stream, state=state, action=action)
+    entry = add_history_entry(kinesis_stream, state=state, action=action)
+    return entry
 
 
 def execute_dsl_string(dsl_str, context, config=None):

@@ -215,7 +215,7 @@
 
   app.factory('restClient', function($resource) {
     return new SwaggerClient({
-      url: "//" + document.location.host + "/swagger.json",
+      url: document.location.protocol + "//" + document.location.host + "/swagger.json",
       usePromise: true
     });
   });

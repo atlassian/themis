@@ -9,5 +9,6 @@ nosetests.xml
 /.coverage
 *.log
 .venv/
+*.sd.yml
 *.egg-info/
 /dist/

@@ -9,7 +9,6 @@ DB_FILE_NAME = 'monitoring.data.db'
 DB_TABLE_HISTORY = 'states_history'
 
 
-# TODO needed?
 class HistoricalState(object):
     def __init__(self, section, resource, state=None, action=None):
         self.timestamp = time.time() * 1000.0
@@ -45,6 +44,8 @@ def history_add(section, resource, state, action):
     c.execute(("INSERT INTO %s(timestamp,section,resource,state,action) " +
         "VALUES (?,?,?,?,?)") % DB_TABLE_HISTORY, (ms, section, resource, state, action))
     conn.commit()
+    state = HistoricalState(section, resource, state=state, action=action)
+    return state
 
 
 def history_get(section, resource, limit=100):

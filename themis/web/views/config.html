@@ -30,7 +30,7 @@
             </tbody>
           </table>
           <div style="margin-top: 20px">
-            <button class="aui-button aui-button-primary" ng-click="save()">Save</button>
+            <button class="aui-button aui-button-primary" ng-disabled="saving" ng-click="save()">{{saving ? 'Saving...' : 'Save'}}</button>
           </div>
         </form>
       </div>

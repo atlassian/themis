@@ -5,6 +5,12 @@ AWS_API_PORT = 9896
 GANGLIA_PORT = 9897
 LOCALHOST = '127.0.0.1'
 BIND_HOST = '0.0.0.0'
+DEFAULT_REGION = 'us-east-1'
+
+# set test values for boto3 credentials
+os.environ['AWS_DEFAULT_REGION'] = DEFAULT_REGION
+os.environ['AWS_ACCESS_KEY_ID'] = 'test_access_key'
+os.environ['AWS_SECRET_ACCESS_KEY'] = 'test_secret_key'
 
 try:
     tmp = os.environ.AWS_ENDPOINT_URL

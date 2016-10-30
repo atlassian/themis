@@ -64,3 +64,18 @@ def test_upscale():
     stream = mock_stream_state(config=config)
     shards = kinesis_scaling.get_upscale_shards(stream, config)
     assert(len(shards) == 1)
+
+
+def test_perform_scaling():
+    common.QUERY_CACHE_TIMEOUT = 0
+    config = get_test_stream_config(
+        upscale_expr='1 if (shards.count < 5 and stream.IncomingBytes.average > 100000) else 0')
+
+    # mock cloudwatch metrics
+    mock.aws_api.server.config['cloudwatch.IncomingBytes.value'] = 1000000
+    stream = mock_stream_state(config=config)
+
+    state = kinesis_scaling.perform_scaling(stream)
+    assert(state.action == 'UPSCALE(+1)')
+    state_obj = json.loads(state.state)
+    assert(state_obj['stream']['IncomingBytes']['average'] == 1000000)

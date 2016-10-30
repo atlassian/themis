@@ -28,8 +28,8 @@ STATIC_INFO_CACHE_TIMEOUT = 60 * 30
 
 # cache globals
 last_cache_clean_time = 0
-mutex_clean = threading.Semaphore(1)
-mutex_popen = threading.Semaphore(1)
+mutex_clean = threading.RLock()
+mutex_popen = threading.RLock()
 
 
 def get_logger(name=None):
@@ -38,6 +38,27 @@ def get_logger(name=None):
 
 # logger
 LOG = get_logger(__name__)
+
+
+class FuncThread(threading.Thread):
+    def __init__(self, func, params, quiet=False):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.params = params
+        self.func = func
+        self.quiet = quiet
+
+    def run(self):
+        try:
+            self.func(self.params)
+        except Exception, e:
+            if not self.quiet:
+                print("Thread run method %s(%s) failed: %s" %
+                    (self.func, self.params, traceback.format_exc()))
+
+    def stop(self, quiet=False):
+        if not quiet and not self.quiet:
+            print("WARN: not implemented: FuncThread.stop(..)")
 
 
 def clean_cache():
@@ -136,6 +157,10 @@ def is_number(s):
         return True
     except Exception:
         return False
+
+
+def is_ip_address(s):
+    return re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', s)
 
 
 def is_NaN(obj, expect_only_numbers=False):

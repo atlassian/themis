@@ -23,14 +23,8 @@ TEST_CONFIG = None
 # logger
 LOG = common.get_logger(__name__)
 
-# global config pointer
-CONFIG = None
-
 # maps config keys to their descriptions
 ALL_DESCRIPTIONS = {}
-
-# in-memory cache for various config values
-# CONFIG_CACHE = {}
 
 # configuration change listeners
 CONFIG_LISTENERS = set()
@@ -58,6 +52,7 @@ class ConfigObject(JsonObject):
 
     def set(self, key, value):
         self.__dict__[key] = value
+        return value
 
     @classmethod
     def from_json(cls, j):
@@ -83,10 +78,23 @@ class SystemConfiguration(ConfigObject):
         result.kinesis = KinesisConfiguration.from_json(j.get('kinesis'))
         return result
 
+    def set(self, key, value):
+        if isinstance(value, dict):
+            if key == SECTION_GLOBAL:
+                value = GeneralConfiguration.from_dict(value)
+            elif key == SECTION_EMR:
+                value = EmrConfiguration.from_dict(value)
+            elif key == SECTION_KINESIS:
+                value = KinesisConfiguration.from_dict(value)
+        return super(SystemConfiguration, self).set(key, value)
+
 
 class GeneralConfiguration(ConfigObject):
     CONFIG_ITEMS = {
-        'ssh_keys': 'Comma-separated list of SSH public key files to use for connecting to the clusters.',
+        'roles_to_assume': ('Comma-separated list of ARNs of IAM roles to assume via STS. ' +
+            'Changing this property triggers reloading of the list of streams and clusters.'),
+        'ssh_keys': ('Comma-separated list of SSH key files or environment variables to use for ' +
+            'connecting to the clusters. If a value is "$var", the key is read from env variable $var'),
         # TODO move to EMR config?
         'autoscaling_clusters': 'Comma-separated list of cluster IDs to auto-scale',
         # TODO move to Kinesis config?
@@ -96,7 +104,8 @@ class GeneralConfiguration(ConfigObject):
     }
 
     def __init__(self):
-        self.ssh_keys = '~/.ssh/atl-ai-etl-prod.pem,~/.ssh/atl-ai-etl-dev.pem,~/.ssh/ai-etl.pem'
+        self.ssh_keys = '$SSH_KEY_ETL_PROD'
+        self.roles_to_assume = ''
         self.autoscaling_clusters = ''
         self.autoscaling_kinesis_streams = ''
         self.monitoring_time_window = 60 * 10
@@ -127,6 +136,7 @@ class EmrConfiguration(ConfigObject):
 
 class EmrClusterConfiguration(ConfigObject):
     CONFIG_ITEMS = {
+        'role_to_assume': 'ARN of IAM role to assume via STS when accessing this resource',
         'downscale_expr': 'Trigger cluster downscaling by the number of nodes this expression evaluates to',
         'upscale_expr': 'Trigger cluster upscaling by the number of nodes this expression evaluates to',
         'time_based_scaling': """A JSON string that maps date regular expressions to minimum number of nodes. \
@@ -140,6 +150,7 @@ class EmrClusterConfiguration(ConfigObject):
     }
 
     def __init__(self):
+        self.role_to_assume = ''
         self.downscale_expr = """1 if \
             (tasknodes.running and tasknodes.active and tasknodes.count.nodes > time_based.minimum.nodes(now) \
             and tasknodes.average.cpu < 0.5 and tasknodes.average.mem < 0.9) \
@@ -174,19 +185,21 @@ class KinesisConfiguration(ConfigObject):
 
 class KinesisStreamConfiguration(ConfigObject):
     CONFIG_ITEMS = {
-        'enable_enhanced_monitoring': """Enable enhanced monitoring. A value of "true" \
-            enables per-shard monitoring with ShardLevelMetrics=ALL""",
+        'role_to_assume': 'ARN of IAM role to assume via STS when accessing this resource',
+        'enable_enhanced_monitoring': """Enable enhanced monitoring. Setting the value to "true" \
+            (without quotes) enables per-shard monitoring with ShardLevelMetrics=ALL""",
         'stream_upscale_expr': 'Trigger stream upscaling by the number of shards this expression evaluates to',
         'stream_downscale_expr': 'Trigger stream downscaling by the number of shards this expression evaluates to'
     }
 
     def __init__(self):
+        self.role_to_assume = ''
         self.enable_enhanced_monitoring = 'false'
         self.stream_downscale_expr = '1 if (shards.count > 1 and stream.IncomingBytes.average < 100000) else 0'
         self.stream_upscale_expr = '1 if (shards.count < 5 and stream.IncomingBytes.average > 100000) else 0'
 
 
-ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration]
+ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration, KinesisStreamConfiguration]
 # populate ALL_DESCRIPTIONS
 for clazz in ALL_CONFIG_CLASSES:
     ALL_DESCRIPTIONS.update(clazz.CONFIG_ITEMS)
@@ -207,14 +220,12 @@ def convert_from_list(cfgs):
 
 
 def get_config(force_load=False):
-    global CONFIG, TEST_CONFIG, last_config_load_time
+    global TEST_CONFIG, last_config_load_time
     if TEST_CONFIG:
         return TEST_CONFIG
     time_now = now()
     if (time_now - last_config_load_time) > CONFIG_CACHE_DURATION:
         force_load = True
-    if CONFIG and not force_load:
-        return CONFIG
     app_config = common.load_json_file(CONFIG_FILE_LOCATION)
     last_config_load_time = time_now
     if not app_config:
@@ -222,23 +233,21 @@ def get_config(force_load=False):
         common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
     else:
         app_config = SystemConfiguration.from_json(app_config)
-    CONFIG = app_config
     return app_config
 
 
 def write(config, section=SECTION_GLOBAL, resource=None):
-    # invalidate_cache(section)
     app_config = get_config(force_load=True)
     if resource:
         target_config = app_config.get(section)
         old_config = target_config.get(resource)
-        target_config.set(resource, config)
-        notify_listeners(old_config, config, section=section, resource=resource)
+        config = target_config.set(resource, config)
     else:
         old_config = app_config.get(section)
-        app_config.set(section, config)
-        notify_listeners(old_config, config, section=section)
+        config = app_config.set(section, config)
+    # first save new config, then notify listeners
     common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
+    notify_listeners(old_config, config, section=section, resource=resource)
     return config
 
 
@@ -268,9 +277,3 @@ def set_value(key, new_value, section=SECTION_GLOBAL, resource=None, config=None
         # write changes to config file
         write(target_config, section=section, resource=resource)
     return target_config
-
-
-# def invalidate_cache(section):
-#     if not section:
-#         section = SECTION_GLOBAL
-#     CONFIG_CACHE[section] = {}
