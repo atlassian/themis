@@ -6,7 +6,7 @@ from themis.util.common import *
 from themis.model.aws_model import *
 from themis.model.emr_model import *
 from themis.model.kinesis_model import *
-from themis.model.resources_model import *
+import themis.model.resources_model
 import themis.monitoring.kinesis_monitoring
 import themis.monitoring.emr_monitoring
 
@@ -55,7 +55,7 @@ def get_resource(section, resource_id):
 
 def load_resources_config():
     content = load_json_file(RESOURCES_FILE_LOCATION)
-    cfg = ResourcesConfiguration.from_dict(content)
+    cfg = themis.model.resources_model.ResourcesConfiguration.from_dict(content)
     return cfg
 
 
@@ -79,7 +79,7 @@ def init_resources_file(run_parallel=False):
     sys_config = get_config()
     roles = re.split(r'\s*,\s*', sys_config.general.roles_to_assume)
 
-    cfg = ResourcesConfiguration()
+    cfg = themis.model.resources_model.ResourcesConfiguration()
     LOG.info("Initializing config file with list of resources from AWS: %s" % RESOURCES_FILE_LOCATION)
 
     for role in roles:

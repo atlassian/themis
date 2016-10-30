@@ -183,7 +183,7 @@ def restart_emr_node():
     cluster_id = data['cluster_id']
     node_host = data['node_host']
     app_config = config.get_config()
-    clusters = app_config.emr
+    clusters = app_config.emr.to_dict()
     for c_id, details in clusters.iteritems():
         if c_id == cluster_id:
             cluster_ip = details.ip
@@ -277,4 +277,4 @@ def send_static(path):
 
 
 def serve(port):
-    app.run(port=int(port), debug=True, threaded=True, host='0.0.0.0')
+    app.run(port=int(port), debug=False, threaded=True, host='0.0.0.0')

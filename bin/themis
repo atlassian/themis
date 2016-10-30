@@ -41,7 +41,6 @@ if __name__ == "__main__":
     setup_logging(log_file)
 
     if args['server_and_loop']:
-        # resources.init_resources_file()
 
         def run(cmd):
             process = subprocess.Popen(cmd, shell=True, stdout=sys.stdout, stderr=sys.stderr)
