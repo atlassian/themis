@@ -34,16 +34,13 @@ class NodesInfo:
 
 class CountStatsExpr:
     def __init__(self, info):
-        if 'nodes' in info:
-            self.nodes = info['nodes']
+        self.nodes = info.get('nodes')
 
 
 class AggregateStatsExpr:
     def __init__(self, info):
-        if 'cpu' in info:
-            self.cpu = info['cpu']
-        if 'mem' in info:
-            self.mem = info['mem']
+        self.cpu = info.get('cpu')
+        self.mem = info.get('mem')
 
 
 class TimeBasedScaling:
@@ -54,7 +51,7 @@ class TimeBasedScaling:
 
 class TimeBasedMinimumNodes:
     def __init__(self, info):
-        self.nodes = info['nodes'] if 'nodes' in info else []
+        self.nodes = info.get('nodes', [])
 
 
 class ExprContext:

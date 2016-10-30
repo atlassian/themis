@@ -18,8 +18,8 @@ LOG = common.get_logger(__name__)
 
 def sort_nodes_by_load(nodes, weight_mem=1, weight_cpu=2, desc=False):
     return sorted(nodes, reverse=desc, key=lambda node: (
-        float((node['load']['mem'] if 'mem' in node['load'] else 0) * weight_mem) +
-        float((node['load']['cpu'] if 'cpu' in node['load'] else 0) * weight_cpu)))
+        float((node['load'].get('mem', 0)) * weight_mem) +
+        float((node['load'].get('cpu', 0)) * weight_cpu)))
 
 
 def get_node_groups_or_preferred_markets(cluster_id, info=None, config=None):
@@ -57,13 +57,14 @@ def get_termination_candidates(info, config=None):
 def get_termination_candidates_for_market_or_group(info, preferred):
     candidates = []
     cluster_id = info['cluster_id']
+    role = emr_monitoring.get_iam_role_for_cluster(cluster_id)
     for key, details in info['nodes'].iteritems():
         if details['type'] == aws_common.INSTANCE_GROUP_TYPE_TASK:
             if 'queries' not in details:
                 details['queries'] = 0
             # terminate only nodes with 0 queries running
             if details['queries'] == 0:
-                group_details = aws_common.get_instance_group_details(cluster_id, details['gid'])
+                group_details = aws_common.get_instance_group_details(cluster_id, details['gid'], role=role)
                 if preferred in [group_details['Market'], group_details['id']]:
                     candidates.append(details)
     return candidates
@@ -167,12 +168,13 @@ def terminate_node(cluster, node):
         aws_common.set_presto_node_state(cluster.ip, node_ip, aws_common.PRESTO_STATE_SHUTTING_DOWN)
     else:
         LOG.info("Terminating task node with instance ID '%s' in group '%s'" % (instance_id, tasknodes_group))
-        aws_common.terminate_task_node(instance_group_id=tasknodes_group, instance_id=instance_id)
+        role = emr_monitoring.get_iam_role_for_cluster(cluster)
+        aws_common.terminate_task_node(instance_group_id=tasknodes_group, instance_id=instance_id, role=role)
 
 
-def spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, nodes_to_add=1):
+def spawn_nodes(cluster_ip, tasknodes_group, current_num_nodes, nodes_to_add=1, role=None):
     LOG.info("Adding new task node to cluster '%s'" % cluster_ip)
-    aws_common.spawn_task_node(tasknodes_group, current_num_nodes, nodes_to_add)
+    aws_common.spawn_task_node(tasknodes_group, current_num_nodes, nodes_to_add, role=role)
 
 
 def select_tasknode_group(tasknodes_groups, cluster_id, info=None):
@@ -214,6 +216,7 @@ def perform_scaling(cluster):
         action = 'N/A'
         # Make sure we don't change clusters that are not configured
         if cluster.id in app_config.general.get_autoscaling_clusters():
+            role = emr_monitoring.get_iam_role_for_cluster(cluster)
             try:
                 nodes_to_terminate = get_nodes_to_terminate(info)
                 if len(nodes_to_terminate) > 0:
@@ -223,11 +226,11 @@ def perform_scaling(cluster):
                 else:
                     nodes_to_add = get_nodes_to_add(info)
                     if len(nodes_to_add) > 0:
-                        tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster.id)
+                        tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster.id, role=role)
                         tasknodes_group = select_tasknode_group(tasknodes_groups, cluster.id, info=info)['id']
                         current_num_nodes = len([n for key, n in info['nodes'].iteritems()
                             if n['gid'] == tasknodes_group])
-                        spawn_nodes(cluster.ip, tasknodes_group, current_num_nodes, len(nodes_to_add))
+                        spawn_nodes(cluster.ip, tasknodes_group, current_num_nodes, len(nodes_to_add), role=role)
                         action = 'UPSCALE(+%s)' % len(nodes_to_add)
                     else:
                         action = 'NOTHING'
@@ -235,6 +238,6 @@ def perform_scaling(cluster):
                 LOG.warning("WARNING: Error downscaling/upscaling cluster %s: %s" %
                     (cluster.id, traceback.format_exc(e)))
             # clean up and terminate instances whose nodes are already in inactive state
-            aws_common.terminate_inactive_nodes(cluster, info)
+            aws_common.terminate_inactive_nodes(cluster, info, role=role)
         # store the state for future reference
         add_history_entry(cluster, info, action)

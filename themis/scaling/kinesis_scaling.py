@@ -91,7 +91,8 @@ def perform_scaling(kinesis_stream):
     downscale = get_downscale_shards(kinesis_stream)
     upscale = get_upscale_shards(kinesis_stream)
     action = 'NOTHING'
-    kinesis_client = aws_common.connect_kinesis()
+    role = kinesis_monitoring.get_iam_role_for_stream(kinesis_stream)
+    kinesis_client = aws_common.connect_kinesis(role=role)
     try:
         if downscale:
             action = 'DOWNSCALE(-%s)' % len(downscale)

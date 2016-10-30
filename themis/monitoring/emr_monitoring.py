@@ -128,8 +128,10 @@ def get_node_load(cluster, host, monitoring_interval_secs=MONITORING_INTERVAL_SE
 
 def get_cluster_load(cluster, nodes=None, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     result = {}
+    role = get_iam_role_for_cluster(cluster)
+
     if not nodes:
-        nodes = aws_common.get_cluster_nodes(cluster.id)
+        nodes = aws_common.get_cluster_nodes(cluster.id, role=role)
 
     def query(node):
         host = node['host']
@@ -297,7 +299,8 @@ def collect_info(cluster, nodes=None, config=None,
         result['is_presto'] = cluster.type == aws_common.CLUSTER_TYPE_PRESTO
         nodes_list = nodes
         if not nodes_list:
-            nodes_list = aws_common.get_cluster_nodes(cluster.id)
+            role = get_iam_role_for_cluster(cluster)
+            nodes_list = aws_common.get_cluster_nodes(cluster.id, role=role)
         for node in nodes_list:
             host = node['host']
             result['nodes'][host] = {}
@@ -308,9 +311,8 @@ def collect_info(cluster, nodes=None, config=None,
         try:
             queries = get_node_queries(cluster)
             for host in queries:
-                if host not in result['nodes']:
-                    result['nodes'][host] = {}
-                result['nodes'][host]['queries'] = queries[host]
+                if host in result['nodes']:
+                    result['nodes'][host]['queries'] = queries[host]
             result['idle_nodes'] = get_idle_task_nodes(queries)
         except subprocess.CalledProcessError, e:
             # happens for non-presto clusters (where presto-cli is not available)
@@ -352,8 +354,8 @@ def update_resources(resource_config):
     return resource_config
 
 
-def list_all_clusters():
-    emr_client = aws_common.connect_emr()
+def list_all_clusters(role=None):
+    emr_client = aws_common.connect_emr(role=role)
     result = []
     marker = None
     for i in range(0, 10):
@@ -368,10 +370,16 @@ def list_all_clusters():
     return result
 
 
-def init_emr_config(run_parallel=False):
+def get_iam_role_for_cluster(cluster):
+    if not isinstance(cluster, basestring):
+        cluster = cluster.id
+    return config.get_value('role_to_assume', section=SECTION_EMR, resource=cluster)
+
+
+def init_emr_config(run_parallel=False, role=None):
     cfg = ResourcesConfiguration()
 
-    emr_client = aws_common.connect_emr()
+    emr_client = aws_common.connect_emr(role=role)
 
     def init_emr_cluster_config(c):
         if c['Status']['State'][0:10] != 'TERMINATED':
@@ -406,10 +414,13 @@ def init_emr_config(run_parallel=False):
                 LOG.info('Ignoring cluster %s (Ganglia not installed)' % cluster.id)
 
     # load EMR resources
-    clusters = list_all_clusters()
-    if run_parallel:
-        common.parallelize(clusters, init_emr_cluster_config)
-    else:
-        for c in clusters:
-            init_emr_cluster_config(c)
+    try:
+        clusters = list_all_clusters(role=role)
+        if run_parallel:
+            common.parallelize(clusters, init_emr_cluster_config)
+        else:
+            for c in clusters:
+                init_emr_cluster_config(c)
+    except Exception, e:
+        LOG.info('Unable to list EMR clusters using IAM role "%s"' % role)
     return cfg

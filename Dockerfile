@@ -1,4 +1,4 @@
-FROM python:2-onbuild
+FROM python:2
 
 MAINTAINER Waldemar Hummer (whummer@atlassian.com)
 
@@ -12,12 +12,21 @@ RUN apt-get update && apt-get install -y gcc git make npm && apt-get clean
 # install Themis package
 RUN pip install themis-autoscaler
 
+# Copy themis files from local copy
+ADD bin /opt/code/themis/bin
+ADD themis /opt/code/themis/themis
+RUN rm -f /usr/local/bin/themis && ln -s /opt/code/themis/bin/themis /usr/local/bin/themis
+
+# Set PYTHONPATH
+ENV PYTHONPATH /opt/code/themis
+
 # make sure we have write access to workdir
-RUN chmod 777 -R /opt/code/themis/
+RUN chmod 777 /opt/code/themis/
 
 # assign random user id
-USER 24624336
-ENV USER docker
+# TODO: we currently can't use "random" uid because then ssh commands fail
+# USER 24624336
+# ENV USER docker
 
 # expose service port
 EXPOSE 8080
@@ -26,4 +35,4 @@ EXPOSE 8080
 ENV AWS_DEFAULT_REGION us-east-1
 
 # define command
-CMD ["themis", "server_and_loop", "--port=8080", "--log=themis.log"]
+ENTRYPOINT ["themis"]

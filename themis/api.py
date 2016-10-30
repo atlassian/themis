@@ -35,6 +35,14 @@ def spec():
     return jsonify(swag)
 
 
+@app.route('/healthcheck')
+def healthcheck():
+    result = {
+        'status': 'OK'
+    }
+    return jsonify(result)
+
+
 @app.route('/config/<section>', methods=['GET'])
 def get_global_config(section):
     """ Get global configuration

@@ -138,6 +138,10 @@ def is_number(s):
         return False
 
 
+def is_ip_address(s):
+    return re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', s)
+
+
 def is_NaN(obj, expect_only_numbers=False):
     if expect_only_numbers and not is_number(obj):
         return True

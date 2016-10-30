@@ -18,9 +18,8 @@ def update_config(old_config, new_config, section, resource=None):
     if section != SECTION_KINESIS:
         return
     if resource:
-        key = 'enable_enhanced_monitoring'
         old_value = old_config.enable_enhanced_monitoring
-        new_value = new_config['enable_enhanced_monitoring']
+        new_value = new_config.enable_enhanced_monitoring
         if new_value != old_value:
             if new_value:
                 # enable monitoring
@@ -42,27 +41,35 @@ def update_resources(resource_config):
     return resource_config
 
 
-def get_cloudwatch_metrics(metric, namespace, dimensions, time_window=600, period=60):
+def get_cloudwatch_metrics(metric, namespace, dimensions, role=None, time_window=600, period=60):
     start_time, end_time = get_start_and_end(diff_secs=time_window, format=None)
     metric_names = metric if isinstance(metric, basestring) else ','.join(metric)
-    cloudwatch_client = aws_common.connect_cloudwatch()
+    cloudwatch_client = aws_common.connect_cloudwatch(role=role)
     datapoints = cloudwatch_client.get_metric_statistics(Namespace=namespace, MetricName=metric_names,
         StartTime=start_time, EndTime=end_time, Period=period, Dimensions=dimensions, Statistics=['Average'])
     datapoints = datapoints['Datapoints']
     return datapoints
 
 
-def enable_shard_monitoring(stream, metrics='ALL'):
+def get_iam_role_for_stream(stream):
     if not isinstance(stream, basestring):
         stream = stream.id
-    kinesis_client = aws_common.connect_kinesis()
+    return config.get_value('role_to_assume', section=SECTION_KINESIS, resource=stream)
+
+
+def enable_shard_monitoring(stream, metrics=['ALL']):
+    if not isinstance(stream, basestring):
+        stream = stream.id
+    role = get_iam_role_for_stream(stream)
+    kinesis_client = aws_common.connect_kinesis(role=role)
     return kinesis_client.enable_enhanced_monitoring(StreamName=stream, ShardLevelMetrics=metrics)
 
 
-def disable_shard_monitoring(stream, metrics='ALL'):
+def disable_shard_monitoring(stream, metrics=['ALL']):
     if not isinstance(stream, basestring):
         stream = stream.id
-    kinesis_client = aws_common.connect_kinesis()
+    role = get_iam_role_for_stream(stream)
+    kinesis_client = aws_common.connect_kinesis(role=role)
     return kinesis_client.disable_enhanced_monitoring(StreamName=stream, ShardLevelMetrics=metrics)
 
 
@@ -70,7 +77,8 @@ def get_kinesis_cloudwatch_metrics(stream, metric, shard=None):
     dimensions = [{'Name': 'StreamName', 'Value': stream.id}]
     if shard:
         shard = shard if isinstance(shard, basestring) else shard.id
-    return get_cloudwatch_metrics(metric=metric, namespace='AWS/Kinesis', dimensions=dimensions)
+    role = get_iam_role_for_stream(stream)
+    return get_cloudwatch_metrics(metric=metric, namespace='AWS/Kinesis', dimensions=dimensions, role=role)
 
 
 def replace_nan(value, default=0):
@@ -120,9 +128,11 @@ def collect_info(stream, monitoring_interval_secs=600, config=None):
     return result
 
 
-def retrieve_stream_details(stream_name):
+def retrieve_stream_details(stream_name, role=None):
     LOG.info('Getting details for Kinesis stream %s' % stream_name)
-    kinesis_client = aws_common.connect_kinesis()
+    if role is None:
+        role = get_iam_role_for_stream(stream_name)
+    kinesis_client = aws_common.connect_kinesis(role=role)
     out = kinesis_client.describe_stream(StreamName=stream_name)
     stream_shards = out['StreamDescription']['Shards']
     stream = themis.model.kinesis_model.KinesisStream(stream_name)
@@ -137,19 +147,22 @@ def retrieve_stream_details(stream_name):
     return stream
 
 
-def init_kinesis_config(run_parallel=False):
+def init_kinesis_config(run_parallel=False, role=None):
     cfg = themis.model.resources_model.ResourcesConfiguration()
 
     def init_kinesis_stream_config(stream_name):
-        stream_config = retrieve_stream_details(stream_name)
+        stream_config = retrieve_stream_details(stream_name, role=role)
         cfg.kinesis.append(stream_config)
 
     # load Kinesis streams
-    kinesis_client = aws_common.connect_kinesis()
-    out = kinesis_client.list_streams()
-    if run_parallel:
-        common.parallelize(out['StreamNames'], init_kinesis_stream_config)
-    else:
-        for c in out['StreamNames']:
-            init_kinesis_stream_config(c)
+    kinesis_client = aws_common.connect_kinesis(role=role)
+    try:
+        out = kinesis_client.list_streams()
+        if run_parallel:
+            common.parallelize(out['StreamNames'], init_kinesis_stream_config)
+        else:
+            for c in out['StreamNames']:
+                init_kinesis_stream_config(c)
+    except Exception, e:
+        LOG.info('Unable to list Kinesis streams using IAM role "%s"' % role)
     return cfg
