@@ -181,6 +181,7 @@ make server
 
 ## Change Log
 
+* v0.2.5: Add SQLAlchemy and store config and monitoring data in a proper database
 * v0.2.4: Support temporary STS tokens via assumed IAM roles
 * v0.2.3: Use boto3 for AWS API calls
 * v0.2.1: Add Dockerfile, publish image to Docker hub

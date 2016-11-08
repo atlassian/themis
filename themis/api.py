@@ -38,8 +38,19 @@ def spec():
 @app.route('/healthcheck')
 def healthcheck():
     result = {
-        'status': 'OK'
+        'status': 'OK',
+        'remote_addr': request.remote_addr
     }
+    cmds = {
+        'disk': 'df -h',
+        'uptime': 'uptime',
+        'ifconfig': 'ifconfig'
+    }
+    for key, cmd in cmds.iteritems():
+        try:
+            result[key] = common.run(cmd)
+        except Exception, e:
+            result[key] = str(e)
     return jsonify(result)
 
 
