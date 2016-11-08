@@ -28,6 +28,28 @@ table.aui-table tr.summary {
 .alert-success .alert-link {
 	color: #2b542c;
 }
+.alert-warning {
+  color: #8a6d3b;
+  background-color: #fcf8e3;
+  border-color: #faebcc;
+}
+.alert-warning hr {
+  border-top-color: #f7e1b5;
+}
+.alert-warning .alert-link {
+  color: #66512c;
+}
+.alert-danger {
+  color: #a94442;
+  background-color: #f2dede;
+  border-color: #ebccd1;
+}
+.alert-danger hr {
+  border-top-color: #e4b9c0;
+}
+.alert-danger .alert-link {
+  color: #843534;
+}
 .alert-dismissable .close, .alert-dismissible .close {
 	position: relative;
 	top: -2px;

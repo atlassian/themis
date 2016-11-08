@@ -99,6 +99,10 @@
             if(callback)
               return callback(config);
             return config;
+          }, function(error) {
+            var errorMsg = error.errObj ? error.errObj.message : 'n/a';
+            growl.error('Unable to save configuration: ' + errorMsg, {ttl: 2500, disableCountDown: true});
+            throw error;
           });
         });
       }

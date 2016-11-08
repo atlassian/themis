@@ -1,7 +1,7 @@
 *.pyc
 .DS_Store
 node_modules/
-monitoring.data.db
+*.db
 *.config.json*
 *.clusters.json*
 *.resources.json*

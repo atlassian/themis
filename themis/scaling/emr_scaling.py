@@ -215,7 +215,8 @@ def perform_scaling(cluster):
     if info:
         action = 'N/A'
         # Make sure we don't change clusters that are not configured
-        if cluster.id in app_config.general.get_autoscaling_clusters():
+        autoscaling_clusters = app_config.general.get_autoscaling_clusters()
+        if cluster.id in autoscaling_clusters:
             role = emr_monitoring.get_iam_role_for_cluster(cluster)
             try:
                 nodes_to_terminate = get_nodes_to_terminate(info)

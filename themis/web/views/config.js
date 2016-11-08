@@ -33,7 +33,9 @@
           $scope.config = config;
         });
       }, function(err) {
-        $scope.saving = false;
+        $scope.$apply(function(){
+          $scope.saving = false;
+        });
         console.log(err);
       });
     };

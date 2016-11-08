@@ -106,6 +106,7 @@
 
         /* load config */
         $scope.loadConfig();
+        $scope.$apply();
       })
     };
 
@@ -144,16 +145,16 @@
     };
 
     $scope.saveConfig = function() {
-      $scope.settings.loading = true;
+      $scope.settings.saving = true;
       var params = {
         resource: $stateParams.clusterId
       };
       appConfig.setConfig($scope.settings.config, params).
       then(function(config) {
-        $scope.settings.loading = false;
+        $scope.settings.saving = false;
         $scope.settings.config = config;
       }, function(err) {
-        $scope.settings.loading = false;
+        $scope.settings.saving = false;
         console.log(err);
       });
     };
