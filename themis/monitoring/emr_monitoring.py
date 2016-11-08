@@ -121,8 +121,12 @@ def get_node_load_mem(cluster, host, monitoring_interval_secs=MONITORING_INTERVA
 
 def get_node_load(cluster, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     result = {}
-    result['mem'] = get_node_load_mem(cluster, host, monitoring_interval_secs)
-    result['cpu'] = get_node_load_cpu(cluster, host, monitoring_interval_secs)
+    try:
+        result['mem'] = get_node_load_mem(cluster, host, monitoring_interval_secs)
+        result['cpu'] = get_node_load_cpu(cluster, host, monitoring_interval_secs)
+    except Exception, e:
+        LOG.warn('Unable to get Ganglia monitoring data for cluster / host: %s / %s' % (cluster.ip, host))
+        raise e
     return result
 
 
@@ -139,7 +143,7 @@ def get_cluster_load(cluster, nodes=None, monitoring_interval_secs=MONITORING_IN
             load = get_node_load(cluster, host, monitoring_interval_secs)
             result[host] = load
         except Exception, e:
-            LOG.warning(traceback.format_exc())
+            # LOG.warning(traceback.format_exc())
             LOG.warning("Unable to get load for node %s: %s" % (host, e))
             result[host] = {}
 

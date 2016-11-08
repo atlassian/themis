@@ -213,6 +213,16 @@ def inject_aws_endpoint(cmd):
     return cmd
 
 
+def inject_env_vars(s):
+    regex = r'\$([a-zA-Z0-9_]+)'
+    match = re.search(regex, s, re.MULTILINE)
+    while match:
+        var_name = match.group(1)
+        s = s.replace('$%s' % var_name, os.environ.get(var_name, ''))
+        match = re.search(regex, s, re.MULTILINE)
+    return s
+
+
 def run_func(func, cache_duration_secs=0, **kwargs):
     return run_cached(func, cache_duration_secs=cache_duration_secs, **kwargs)
 

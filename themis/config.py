@@ -6,6 +6,7 @@ from themis.util import common
 from themis.util.common import run, now
 from themis.model.aws_model import *
 from themis.constants import *
+from themis.monitoring import database
 
 
 # config file location
@@ -32,6 +33,9 @@ CONFIG_LISTENERS = set()
 # seconds to cache the config for
 CONFIG_CACHE_DURATION = 10
 last_config_load_time = 0
+CACHED_CONFIG = None
+# reentrant lock for config loading
+CONFIG_LOCK = threading.RLock()
 
 
 class ConfigObject(JsonObject):
@@ -57,6 +61,8 @@ class ConfigObject(JsonObject):
     @classmethod
     def from_json(cls, j):
         result = cls()
+        if not j:
+            return result
         for k, v in j.iteritems():
             result.set(k, v)
         return result
@@ -73,9 +79,9 @@ class SystemConfiguration(ConfigObject):
     @classmethod
     def from_json(cls, j):
         result = SystemConfiguration()
-        result.general = GeneralConfiguration.from_json(j.get('general'))
-        result.emr = EmrConfiguration.from_json(j.get('emr'))
-        result.kinesis = KinesisConfiguration.from_json(j.get('kinesis'))
+        result.general = GeneralConfiguration.from_json(j.get(SECTION_GLOBAL))
+        result.emr = EmrConfiguration.from_json(j.get(SECTION_EMR))
+        result.kinesis = KinesisConfiguration.from_json(j.get(SECTION_KINESIS))
         return result
 
     def set(self, key, value):
@@ -100,11 +106,14 @@ class GeneralConfiguration(ConfigObject):
         # TODO move to Kinesis config?
         'autoscaling_kinesis_streams': 'Comma-separated list of Kinesis stream names to auto-scale',
         'scaling_loop_interval': 'Loop interval seconds',
+        'db_url': ('Database connection URL. ' +
+            'Examples: sqlite:///themis.data.db or mysql://user:pass@host:port/dbname'),
         'monitoring_time_window': 'Time period (seconds) of historical monitoring data to consider for scaling'
     }
 
     def __init__(self):
         self.ssh_keys = '$SSH_KEY_ETL_PROD'
+        self.db_url = 'sqlite:///themis.data.db'
         self.roles_to_assume = ''
         self.autoscaling_clusters = ''
         self.autoscaling_kinesis_streams = ''
@@ -219,25 +228,50 @@ def convert_from_list(cfgs):
     return result
 
 
-def get_config(force_load=False):
-    global TEST_CONFIG, last_config_load_time
+def get_config(force_load=False, config_file_only=False):
+    global last_config_load_time, CACHED_CONFIG
     if TEST_CONFIG:
         return TEST_CONFIG
-    time_now = now()
-    if (time_now - last_config_load_time) > CONFIG_CACHE_DURATION:
-        force_load = True
-    app_config = common.load_json_file(CONFIG_FILE_LOCATION)
-    last_config_load_time = time_now
-    if not app_config:
-        app_config = SystemConfiguration()
-        common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
-    else:
-        app_config = SystemConfiguration.from_json(app_config)
+
+    CONFIG_LOCK.acquire()
+    try:
+        time_now = now()
+        if (time_now - last_config_load_time) > CONFIG_CACHE_DURATION:
+            force_load = True
+        if CACHED_CONFIG and not force_load:
+            return CACHED_CONFIG
+
+        app_config = common.load_json_file(CONFIG_FILE_LOCATION)
+        if not app_config:
+            app_config = SystemConfiguration()
+            common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
+        else:
+            app_config = SystemConfiguration.from_json(app_config)
+
+        # load additional configs from DB
+        if not config_file_only:
+            configs = database.configs_fetch_all()
+            for config in configs:
+                if config['resource']:
+                    app_config.get(config['section']).set(config['resource'], config['config'])
+                else:
+                    app_config.set(config['section'], config['config'])
+            CACHED_CONFIG = app_config
+            last_config_load_time = now()
+    finally:
+        CONFIG_LOCK.release()
+
     return app_config
 
 
 def write(config, section=SECTION_GLOBAL, resource=None):
     app_config = get_config(force_load=True)
+    if section == SECTION_GLOBAL:
+        new_app_config = SystemConfiguration()
+        config = new_app_config.set(section, config)
+        # save global config as file
+        common.save_file(CONFIG_FILE_LOCATION, new_app_config.to_json())
+
     if resource:
         target_config = app_config.get(section)
         old_config = target_config.get(resource)
@@ -245,8 +279,11 @@ def write(config, section=SECTION_GLOBAL, resource=None):
     else:
         old_config = app_config.get(section)
         config = app_config.set(section, config)
-    # first save new config, then notify listeners
-    common.save_file(CONFIG_FILE_LOCATION, app_config.to_json())
+
+    # save config to database
+    config_json = config.to_json()
+    database.config_save(section=section, resource=resource, config=config_json)
+    # notify listeners
     notify_listeners(old_config, config, section=section, resource=resource)
     return config
 
@@ -256,9 +293,10 @@ def notify_listeners(old_config, new_config, section, resource=None):
         listener(old_config=old_config, new_config=new_config, section=section, resource=resource)
 
 
-def get_value(key, config=None, default=None, section=SECTION_GLOBAL, resource=None):
+def get_value(key, config=None, default=None, section=SECTION_GLOBAL, resource=None,
+        config_file_only=False):
     if not config:
-        config = get_config()
+        config = get_config(config_file_only=config_file_only)
     keys = (section, key)
     if resource:
         keys = (section, resource, key)

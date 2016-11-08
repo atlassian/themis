@@ -22,13 +22,16 @@ def get_ssh_keys():
             if not os.path.isfile(key_file):
                 key_value = os.environ.get(var_name)
                 if key_value:
-                    key_value = key_value.replace(' ', '\n')
                     marker_begin = '-----BEGIN RSA PRIVATE KEY-----'
                     marker_end = '-----END RSA PRIVATE KEY-----'
+                    key_value = key_value.replace(marker_begin, '')
+                    key_value = key_value.replace(marker_end, '')
+                    key_value = key_value.replace(' ', '\n')
                     if marker_begin not in key_value:
                         key_value = ('%s\n' % marker_begin) + key_value
                     if marker_end not in key_value:
                         key_value += ('\n%s' % marker_end)
+                    key_value = key_value.replace('\n\n', '\n')
                     save_file(key_file, key_value)
                     run('chmod 600 %s' % key_file)
                 else:

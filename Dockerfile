@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y gcc git make npm && apt-get clean
 RUN pip install themis-autoscaler
 
 # Copy themis files from local copy
+ADD requirements.txt /opt/code/themis/requirements.txt
+RUN pip install -r requirements.txt
 ADD bin /opt/code/themis/bin
 ADD themis /opt/code/themis/themis
 RUN rm -f /usr/local/bin/themis && ln -s /opt/code/themis/bin/themis /usr/local/bin/themis
