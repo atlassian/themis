@@ -25,9 +25,12 @@ config.CONFIG_LISTENERS.add(update_config)
 
 def update_resources(section=None):
     cfg = load_resources_config()
-    cfg.kinesis = themis.monitoring.kinesis_monitoring.update_resources(cfg.kinesis)
-    cfg.emr = themis.monitoring.emr_monitoring.update_resources(cfg.emr)
+    if not section or section == SECTION_KINESIS:
+        cfg.kinesis = themis.monitoring.kinesis_monitoring.update_resources(cfg.kinesis)
+    if not section or section == SECTION_EMR:
+        cfg.emr = themis.monitoring.emr_monitoring.update_resources(cfg.emr)
     save_resources_file(cfg)
+    return cfg
 
 
 def get_resources(section=None, reload=False):
@@ -39,13 +42,18 @@ def get_resources(section=None, reload=False):
         reloaded = True
     config = load_resources_config()
     if reloaded:
-        update_resources(section)
+        config = update_resources(section)
     if not section:
         return config.get_all()
     return config.get(section)
 
 
-def get_resource(section, resource_id):
+def get_resource(section, resource_id, reload=False):
+    if reload:
+        if section == SECTION_KINESIS:
+            themis.monitoring.kinesis_monitoring.reload_resource(resource_id)
+        if section == SECTION_EMR:
+            themis.monitoring.emr_monitoring.reload_resource(resource_id)
     section_resources = get_resources(section)
     for resource in section_resources:
         if resource.id == resource_id:

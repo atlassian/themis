@@ -252,7 +252,7 @@ def get_kinesis_state(stream_id):
               in: path
     """
     app_config = config.get_config()
-    stream = resources.get_resource(SECTION_KINESIS, stream_id)
+    stream = resources.get_resource(SECTION_KINESIS, stream_id, reload=True)
     monitoring_interval_secs = int(app_config.general.monitoring_time_window)
     info = kinesis_monitoring.collect_info(stream, monitoring_interval_secs=monitoring_interval_secs)
     return jsonify(info)

@@ -2,6 +2,7 @@ import json
 from themis import config
 import themis.model.resources_model
 import themis.model.kinesis_model
+import themis.monitoring.resources
 from themis.model.aws_model import *
 from themis.config import *
 from themis.util.common import *
@@ -32,12 +33,19 @@ def update_config(old_config, new_config, section, resource=None):
 config.CONFIG_LISTENERS.add(update_config)
 
 
+def reload_resource(resource):
+    stream_id = resource if isinstance(resource, basestring) else resource.id
+    stream = retrieve_stream_details(stream_id)
+    themis.monitoring.resources.save_resource(SECTION_KINESIS, stream)
+    return stream
+
+
 def update_resources(resource_config):
-    for resource in resource_config:
-        id = resource.id
+    for res in resource_config:
+        id = res.id
         enabled = config.get_value('enable_enhanced_monitoring', section=SECTION_KINESIS, resource=id)
         if enabled == 'true':
-            resource.enhanced_monitoring = [MONITORING_METRICS_ALL]
+            res.enhanced_monitoring = [MONITORING_METRICS_ALL]
     return resource_config
 
 

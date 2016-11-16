@@ -250,6 +250,9 @@ def do_add_stats(nodelist, result_map):
         if 'presto_state' not in item:
             item['presto_state'] = 'N/A'
         if item['presto_state'] != aws_common.PRESTO_STATE_ACTIVE:
+            if result_map['active']:
+                LOG.info('Status of node %s is %s, setting "<nodes>.active=False"' %
+                    (item.get('host'), item['presto_state']))
             result_map['active'] = False
     result_map['average']['cpu'] = 'NaN'
     result_map['average']['mem'] = 'NaN'
@@ -354,7 +357,12 @@ def get_time_based_scaling_config(cluster_id, config=None):
         return {}
 
 
-def update_resources(resource_config):
+def reload_resource(resource):
+    # TODO
+    pass
+
+
+def update_resources(resource_config, resource=None):
     return resource_config
 
 
