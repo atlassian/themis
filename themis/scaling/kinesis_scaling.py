@@ -14,6 +14,10 @@ class ShardPair(object):
         self.shard1 = shard1
         self.shard2 = shard2
         # TODO check if adjacent
+        if long(shard2.start_key) < long(shard1.start_key):
+            # swap shards
+            self.shard1 = shard2
+            self.shard2 = shard1
 
     def length(self):
         return self.shard1.length() + self.shard2.length()

@@ -44,6 +44,18 @@ def get_node_groups_or_preferred_markets(cluster_id, info=None, config=None):
     return result
 
 
+def remove_duplicates(nodes):
+    result = []
+    for n in nodes:
+        contained = False
+        for n1 in result:
+            if n1.get('iid') == n.get('iid') and n1.get('cid') == n.get('cid'):
+                contained = True
+        if not contained:
+            result.append(n)
+    return result
+
+
 def get_termination_candidates(info, config=None):
     result = []
     cluster_id = info['cluster_id']
@@ -70,6 +82,7 @@ def get_termination_candidates_for_market_or_group(info, preferred):
     return candidates
 
 
+# TODO: merge with execute_dsl_string in util/expr.py !
 def execute_dsl_string(dsl_str, context, config=None):
     expr_context = expr.ExprContext(context)
     allnodes = expr_context.allnodes
@@ -123,12 +136,16 @@ def get_nodes_to_terminate(info, config=None):
     if not isinstance(num_downsize, int) or num_downsize <= 0:
         return []
 
-    candidates = get_termination_candidates(info, config=config)
+    candidates_orig = get_termination_candidates(info, config=config)
+    candidates = remove_duplicates(candidates_orig)
     candidates = sort_nodes_by_load(candidates, desc=False)
 
     if len(candidates) < num_downsize:
         LOG.warning('Not enough candidate nodes to perform downsize operation: %s < %s' %
             (len(candidates), num_downsize))
+        cluster_id = info['cluster_id']
+        preferred_list = get_node_groups_or_preferred_markets(cluster_id, info=info, config=config)
+        LOG.warning('Initial candidates, preferred inst. groups: %s - %s' % (candidates_orig, preferred_list))
 
     result = []
     if candidates:

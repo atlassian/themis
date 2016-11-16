@@ -18,6 +18,9 @@ SECTION_GLOBAL = 'general'
 SECTION_EMR = 'emr'
 SECTION_KINESIS = 'kinesis'
 
+# environment variable names
+ENV_THEMIS_DB_URL = 'THEMIS_DB_URL'
+
 # set this to override config for testing
 TEST_CONFIG = None
 
@@ -107,13 +110,14 @@ class GeneralConfiguration(ConfigObject):
         'autoscaling_kinesis_streams': 'Comma-separated list of Kinesis stream names to auto-scale',
         'scaling_loop_interval': 'Loop interval seconds',
         'db_url': ('Database connection URL. ' +
-            'Examples: sqlite:///themis.data.db or mysql://user:pass@host:port/dbname'),
+            'Examples: sqlite:///themis.data.db or mysql://user:pass@host:port/dbname ' +
+            'This value can be initialized via the $THEMIS_DB_URL environment variable.'),
         'monitoring_time_window': 'Time period (seconds) of historical monitoring data to consider for scaling'
     }
 
     def __init__(self):
         self.ssh_keys = '$SSH_KEY_ETL_PROD'
-        self.db_url = 'sqlite:///themis.data.db'
+        self.db_url = os.environ.get(ENV_THEMIS_DB_URL) or 'sqlite:///themis.data.db'
         self.roles_to_assume = ''
         self.autoscaling_clusters = ''
         self.autoscaling_kinesis_streams = ''
