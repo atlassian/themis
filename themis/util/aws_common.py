@@ -280,7 +280,8 @@ def terminate_inactive_nodes(cluster, cluster_state, role=None):
 
 
 def get_presto_node_state(cluster_ip, node_ip):
-    cmd = 'curl -s --connect-timeout %s http://%s:8889/v1/info/state' % (CURL_CONNECT_TIMEOUT, node_ip)
+    cmd = ('curl -s --connect-timeout %s --max-time %s http://%s:8889/v1/info/state' %
+        (CURL_CONNECT_TIMEOUT, CURL_CONNECT_TIMEOUT, node_ip))
     out = run_ssh(cmd, cluster_ip, user='hadoop', cache_duration_secs=QUERY_CACHE_TIMEOUT)
     out = remove_lines_from_string(out, r'.*Permanently added.*')
     out = re.sub(r'\s*"(.+)"\s*', r'\1', out)

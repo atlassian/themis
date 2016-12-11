@@ -36,5 +36,9 @@ EXPOSE 8080
 # set default env variables
 ENV AWS_DEFAULT_REGION us-east-1
 
+# TODO: uncomment this for testing only
+# ADD themis.config.json /opt/code/themis/themis.config.json
+# ADD themis.resources.json /opt/code/themis/themis.resources.json
+
 # define command
 ENTRYPOINT ["themis"]

@@ -35,22 +35,31 @@
               <thead>
                 <tr>
                   <th ts-criteria="id" id="shard_id">Shard ID</th>
-                  <th ts-criteria="IncomingBytes.average" id="IncomingBytes">Incoming Bytes / min</th>
-                  <th ts-criteria="IncomingRecords.average" id="IncomingRecords">Incoming Records / min</th>
+                  <th ts-criteria="IncomingBytes.sum" id="IncomingBytes">Incoming Bytes / min</th>
+                  <th ts-criteria="IncomingRecords.sum" id="IncomingRecords">Incoming Records / min</th>
+                  <th ts-criteria="GetRecords_IteratorAgeMilliseconds.max" id="IteratorAgeMilliseconds">Iterator Age</th>
+                  <th ts-criteria="ReadProvisionedThroughputExceeded.sum" id="ReadProvisionedThroughputExceeded">Read Throttles</th>
+                  <th ts-criteria="WriteProvisionedThroughputExceeded.sum" id="WriteProvisionedThroughputExceeded">Write Throttles</th>
                   <th ts-criteria="actions" id="actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr ng-repeat="value in state.data.shards_list track by value.id" ts-repeat>
-                  <td headers="id">{{value.id}}</td>
-                  <td headers="throughput">{{appUtils.format_number(value.IncomingBytes.average)}}</td>
-                  <td headers="throughput">{{appUtils.format_number(value.IncomingRecords.average)}}</td>
+                  <td headers="shard_id">{{value.id}}</td>
+                  <td headers="IncomingBytes">{{appUtils.format_number(value.IncomingBytes.sum)}}</td>
+                  <td headers="IncomingRecords">{{appUtils.format_number(value.IncomingRecords.sum)}}</td>
+                  <td headers="IteratorAgeMilliseconds">{{appUtils.format_number(value.GetRecords_IteratorAgeMilliseconds.max)}}</td>
+                  <td headers="ReadProvisionedThroughputExceeded">{{appUtils.format_number(value.ReadProvisionedThroughputExceeded.sum)}}</td>
+                  <td headers="WriteProvisionedThroughputExceeded">{{appUtils.format_number(value.WriteProvisionedThroughputExceeded.sum)}}</td>
                   <td headers="actions">n/a</td>
                 </tr>
                 <tr class="summary" ng-hide="!state.data.shards_list.length">
                   <td headers="id">Total Σ</td>
-                  <td headers="IncomingBytes">{{state.data.total.IncomingBytes.average | number:2}}</td>
-                  <td headers="IncomingRecords">{{state.data.total.IncomingRecords.average | number:2}}</td>
+                  <td headers="IncomingBytes">{{state.data.total.IncomingBytes.sum | number:2}}</td>
+                  <td headers="IncomingRecords">{{state.data.total.IncomingRecords.sum | number:2}}</td>
+                  <td headers="IteratorAgeMilliseconds">{{state.data.total.GetRecords_IteratorAgeMilliseconds.last | number:2}}</td>
+                  <td headers="ReadProvisionedThroughputExceeded">{{state.data.total.ReadProvisionedThroughputExceeded.sum | number:2}}</td>
+                  <td headers="WriteProvisionedThroughputExceeded">{{state.data.total.WriteProvisionedThroughputExceeded.sum | number:2}}</td>
                   <td headers="actions"></td>
                 </tr>
               </tbody>
@@ -74,8 +83,11 @@
                 <tr>
                   <th ts-criteria="timestamp" id="hist_timestamp" ts-default="descending">Time</th>
                   <th ts-criteria="state.shards.count" id="hist_shards">Number of Shards</th>
-                  <th ts-criteria="state.stream.IncomingBytes.average" id="hist_cpu">Ø Incoming Bytes</th>
-                  <th ts-criteria="state.stream.IncomingRecords.average" id="hist_mem">Ø Incoming Records</th>
+                  <th ts-criteria="state.stream.IncomingBytes.sum" id="hist_cpu">Incoming Bytes / min</th>
+                  <th ts-criteria="state.stream.IncomingRecords.sum" id="hist_mem">Incoming Records / min</th>
+                  <th ts-criteria="state.stream.GetRecords_IteratorAgeMilliseconds.max" id="hist_iter_age">Iterator Age</th>
+                  <th ts-criteria="state.stream.ReadProvisionedThroughputExceeded.sum" id="hist_read_throttle">Read Throttles</th>
+                  <th ts-criteria="state.stream.WriteProvisionedThroughputExceeded.sum" id="hist_write_throttle">Write Throttles</th>
                   <th ts-criteria="action" id="hist_action">Action</th>
                 </tr>
               </thead>
@@ -83,8 +95,11 @@
                 <tr ng-repeat="value in history.data track by value.timestamp" ts-repeat>
                   <td headers="hist_timestamp">{{value.timestamp | datetime}}</td>
                   <td headers="hist_shards">{{value.state.shards.count}}</td>
-                  <td headers="hist_cpu">{{value.state.stream.IncomingBytes.average | number:2}}</td>
-                  <td headers="hist_mem">{{value.state.stream.IncomingRecords.average | number:2}}</td>
+                  <td headers="hist_cpu">{{value.state.stream.IncomingBytes.sum | number:2}}</td>
+                  <td headers="hist_mem">{{value.state.stream.IncomingRecords.sum | number:2}}</td>
+                  <td headers="hist_mem">{{value.state.stream.GetRecords_IteratorAgeMilliseconds.sum | number:2}}</td>
+                  <td headers="hist_mem">{{value.state.stream.ReadProvisionedThroughputExceeded.sum | number:2}}</td>
+                  <td headers="hist_mem">{{value.state.stream.WriteProvisionedThroughputExceeded.sum | number:2}}</td>
                   <td headers="hist_action">{{value.action}}</td>
                 </tr>
               </tbody>
@@ -126,7 +141,9 @@
               </tbody>
             </table>
             <div style="margin-top: 20px">
-              <button class="aui-button aui-button-primary" ng-click="saveConfig()">Save</button>
+              <button class="aui-button aui-button-primary" ng-click="saveConfig()"
+                ng-disabled="settings.saving">
+                {{settings.saving ? 'Saving...' : 'Save'}}</button>
             </div>
           </form>
         </div>

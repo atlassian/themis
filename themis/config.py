@@ -208,8 +208,8 @@ class KinesisStreamConfiguration(ConfigObject):
     def __init__(self):
         self.role_to_assume = ''
         self.enable_enhanced_monitoring = 'false'
-        self.stream_downscale_expr = '1 if (shards.count > 1 and stream.IncomingBytes.average < 100000) else 0'
-        self.stream_upscale_expr = '1 if (shards.count < 5 and stream.IncomingBytes.average > 100000) else 0'
+        self.stream_downscale_expr = '1 if (shards.count > 1 and stream.IncomingBytes.sum < 100000) else 0'
+        self.stream_upscale_expr = '1 if (shards.count < 5 and stream.IncomingBytes.sum > 500000) else 0'
 
 
 ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration, KinesisStreamConfiguration]
@@ -258,7 +258,7 @@ def get_config(force_load=False, config_file_only=False):
             for config in configs:
                 if config['resource']:
                     app_config.get(config['section']).set(config['resource'], config['config'])
-                else:
+                elif config['section'] == SECTION_GLOBAL:
                     app_config.set(config['section'], config['config'])
             CACHED_CONFIG = app_config
             last_config_load_time = now()
