@@ -44,7 +44,7 @@ def healthcheck():
     cmds = {
         'disk': 'df -h',
         'uptime': 'uptime',
-        'ifconfig': 'ifconfig'
+        'proc_python': 'ps aux | grep python'
     }
     for key, cmd in cmds.iteritems():
         try:

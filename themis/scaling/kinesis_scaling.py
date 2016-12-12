@@ -39,7 +39,7 @@ def get_downscale_shards(stream, config=None):
             result.append(min_pair)
         else:
             # re-load and save stream config
-            save_modified_stream(stream)
+            kinesis_monitoring.save_modified_stream(stream)
     return result
 
 
@@ -57,7 +57,7 @@ def get_upscale_shards(stream, config=None):
         result.append(shard)
     else:
         # re-load and save stream config
-        save_modified_stream(stream)
+        kinesis_monitoring.save_modified_stream(stream)
     return result
 
 
@@ -86,11 +86,6 @@ def add_history_entry(stream, state, action):
     return database.history_add(section=SECTION_KINESIS, resource=stream.id, state=state, action=action)
 
 
-def save_modified_stream(stream):
-    stream = kinesis_monitoring.retrieve_stream_details(stream.id)
-    themis.monitoring.resources.save_resource(SECTION_KINESIS, stream)
-
-
 def perform_scaling(kinesis_stream):
     downscale = get_downscale_shards(kinesis_stream)
     upscale = get_upscale_shards(kinesis_stream)
@@ -114,8 +109,9 @@ def perform_scaling(kinesis_stream):
                     ShardToSplit=shard.id, NewStartingHashKey=new_start_key)
     except Exception, e:
         LOG.warning('Unable to re-scale stream %s: %s' % (kinesis_stream.id, e))
-    if downscale or upscale:
-        save_modified_stream(kinesis_stream)
+    # record whether this stream has been changed
+    kinesis_monitoring.STREAMS_CHANGED[kinesis_stream.id] = bool(downscale or upscale)
+    # add monitoring data record in history DB
     state = kinesis_stream.monitoring_data
     entry = add_history_entry(kinesis_stream, state=state, action=action)
     return entry

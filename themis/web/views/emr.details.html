@@ -181,7 +181,8 @@
               </tbody>
             </table>
             <div style="margin-top: 20px">
-              <button class="aui-button aui-button-primary" ng-show="!settings.loading" ng-click="saveConfig()">
+              <button class="aui-button aui-button-primary" ng-disabled="settings.saving"
+                  ng-show="!settings.loading" ng-click="saveConfig()">
                 {{settings.saving ? 'Saving...' : 'Save'}}</button>
             </div>
           </form>

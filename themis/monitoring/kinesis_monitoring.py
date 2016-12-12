@@ -13,6 +13,19 @@ LOG = get_logger(__name__)
 
 # constants
 MONITORING_METRICS_ALL = 'ALL'
+STREAM_LEVEL_METRICS = [
+    'IncomingBytes', 'IncomingRecords', 'GetRecords.IteratorAgeMilliseconds',
+    'ReadProvisionedThroughputExceeded', 'WriteProvisionedThroughputExceeded',
+    'GetRecords.IteratorAgeMilliseconds']
+SHARD_LEVEL_METRICS = ['IncomingBytes', 'IncomingRecords', 'IteratorAgeMilliseconds',
+    'OutgoingBytes', 'OutgoingRecords', 'ReadProvisionedThroughputExceeded',
+    'WriteProvisionedThroughputExceeded']
+CW_METRICS_PERIOD = 60
+CW_METRICS_TIMEWINDOW = 60
+CW_STATISTICS = 'Sum'
+
+# track which streams have been changed (scaled) in the previous iteration
+STREAMS_CHANGED = {}
 
 
 def update_config(old_config, new_config, section, resource=None):
@@ -49,12 +62,14 @@ def update_resources(resource_config):
     return resource_config
 
 
-def get_cloudwatch_metrics(metric, namespace, dimensions, role=None, time_window=600, period=60):
+def get_cloudwatch_metrics(metric, namespace, dimensions, role=None,
+        time_window=CW_METRICS_TIMEWINDOW, period=CW_METRICS_PERIOD):
     start_time, end_time = get_start_and_end(diff_secs=time_window, format=None)
     metric_names = metric if isinstance(metric, basestring) else ','.join(metric)
     cloudwatch_client = aws_common.connect_cloudwatch(role=role)
     datapoints = cloudwatch_client.get_metric_statistics(Namespace=namespace, MetricName=metric_names,
-        StartTime=start_time, EndTime=end_time, Period=period, Dimensions=dimensions, Statistics=['Average'])
+        StartTime=start_time, EndTime=end_time, Period=period, Dimensions=dimensions,
+        Statistics=[CW_STATISTICS])
     datapoints = datapoints['Datapoints']
     return datapoints
 
@@ -97,6 +112,10 @@ def replace_nan(value, default=0):
 
 def collect_info(stream, monitoring_interval_secs=600, config=None):
     result = {}
+    # check if we need to re-load and save the stream details
+    if STREAMS_CHANGED.get(stream.id):
+        stream = save_modified_stream(stream)
+    # start initializing the list of shards
     shards_list = result['shards_list'] = []
     for shard in stream.shards:
         shard = shard.to_dict()
@@ -104,23 +123,27 @@ def collect_info(stream, monitoring_interval_secs=600, config=None):
     total = result['total'] = result['stream'] = {}
     shards = result['shards'] = {}
     shards['count'] = len(shards_list)
-    metrics = ['IncomingBytes', 'IncomingRecords']
     metrics_map = {}
     shard_monitoring_enabled = len(stream.enhanced_monitoring) > 0
-    for metric in metrics:
-        datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric=metric)
+    for metric in STREAM_LEVEL_METRICS:
+        metric_name = metric
+        metric = metric.replace('.', '_')
+        datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric=metric_name)
         series = timeseries.get_cloudwatch_timeseries(datapoints)
         shards[metric] = {}
         total[metric] = {}
         total[metric]['average'] = replace_nan(series.mean())
         total[metric]['max'] = replace_nan(series.max())
         total[metric]['min'] = replace_nan(series.min())
+        total[metric]['sum'] = replace_nan(series.sum())
+        total[metric]['last'] = series.values[-1] if len(series.values) > 0 else 0
         # map for shard-level metrics
         metrics_map[metric] = {}
         metrics_map[metric]['average'] = []
         metrics_map[metric]['max'] = []
         metrics_map[metric]['min'] = []
-        if shard_monitoring_enabled:
+        metrics_map[metric]['sum'] = []
+        if shard_monitoring_enabled and metric in SHARD_LEVEL_METRICS:
             # collect detailed shard-level monitoring metrics
             for shard in stream.shards:
                 datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric=metric, shard=shard)
@@ -128,10 +151,12 @@ def collect_info(stream, monitoring_interval_secs=600, config=None):
                 metrics_map[metric]['average'].append(replace_nan(series.mean()))
                 metrics_map[metric]['max'].append(replace_nan(series.max()))
                 metrics_map[metric]['min'].append(replace_nan(series.min()))
+                metrics_map[metric]['sum'].append(replace_nan(series.sum()))
     for m_name, m_lists in metrics_map.iteritems():
         shards[metric]['average'] = math_util.get_stats(m_lists['average'])['avg']
         shards[metric]['min'] = math_util.get_stats(m_lists['min'])['min']
         shards[metric]['max'] = math_util.get_stats(m_lists['max'])['max']
+        shards[metric]['sum'] = math_util.get_stats(m_lists['sum'])['sum']
     remove_NaN(result, delete_values=False)
     return result
 
@@ -152,6 +177,12 @@ def retrieve_stream_details(stream_name, role=None):
             shard.start_key = key_range['StartingHashKey']
             shard.end_key = key_range['EndingHashKey']
             stream.shards.append(shard)
+    return stream
+
+
+def save_modified_stream(stream):
+    stream = retrieve_stream_details(stream.id)
+    themis.monitoring.resources.save_resource(SECTION_KINESIS, stream)
     return stream
 
 

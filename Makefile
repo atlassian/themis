@@ -36,8 +36,7 @@ docker-push:       ## Push image to Docker hub
 	docker push $(IMAGE_NAME)
 
 docker-run:        ## Run Themis in local Docker container
-	echo $(SSH_KEY_ETL_PROD)
-	docker run -it -p 8080:8080 -e AWS_ACCESS_KEY_ID=$(AWS_ACCESS_KEY_ID) -e AWS_SECRET_ACCESS_KEY="$(AWS_SECRET_ACCESS_KEY)" -e AWS_SESSION_TOKEN="$(AWS_SESSION_TOKEN)" -e SSH_KEY_ETL_PROD="$(SSH_KEY_ETL_PROD)" $(IMAGE_NAME) server_and_loop --port=8080
+	docker run -it -p 8080:8080 -e THEMIS_DB_PASSWORD=$(THEMIS_DB_PASSWORD) -e AWS_ACCESS_KEY_ID=$(AWS_ACCESS_KEY_ID) -e AWS_SECRET_ACCESS_KEY="$(AWS_SECRET_ACCESS_KEY)" -e AWS_SESSION_TOKEN="$(AWS_SESSION_TOKEN)" -e SSH_KEY_ETL_PROD="$(SSH_KEY_ETL_PROD)" $(IMAGE_NAME) server_and_loop --port=8080
 
 test:              ## Run tests
 	($(VENV_RUN) && PYTHONPATH=$(dir)/test:$$PYTHONPATH nosetests --nocapture --no-skip --with-coverage --with-xunit --cover-package=themis test/) && \

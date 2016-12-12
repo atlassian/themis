@@ -296,6 +296,7 @@ def add_stats(data):
 def collect_info(cluster, nodes=None, config=None,
         monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     try:
+        # LOG.info('Collect monitoring info for cluster %s' % cluster.id)
         result = {}
         result['time_based'] = {}
         time_based_config = get_time_based_scaling_config(cluster.id, config=config)
@@ -343,8 +344,8 @@ def collect_info(cluster, nodes=None, config=None,
         return result
 
     except Exception, e:
-        print(traceback.format_exc())
         LOG.warning("Error getting monitoring info for cluster %s: %s" % (cluster.id, e))
+        LOG.warning(traceback.format_exc())
         return {}
 
 
