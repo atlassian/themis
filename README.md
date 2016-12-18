@@ -181,6 +181,7 @@ make server
 
 ## Change Log
 
+* v0.2.8: Fix shard-level metrics for Kinesis, add min/max/avg to UI
 * v0.2.7: Extended monitoring metrics for Kinesis
 * v0.2.6: Fix merging of adjacent Kinesis shards. Fix duplicates in EMR downscale candidates
 * v0.2.5: Add SQLAlchemy and store config and monitoring data in a proper database

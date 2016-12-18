@@ -208,8 +208,9 @@ class KinesisStreamConfiguration(ConfigObject):
     def __init__(self):
         self.role_to_assume = ''
         self.enable_enhanced_monitoring = 'false'
-        self.stream_downscale_expr = '1 if (shards.count > 1 and stream.IncomingBytes.sum < 100000) else 0'
-        self.stream_upscale_expr = '1 if (shards.count < 5 and stream.IncomingBytes.sum > 500000) else 0'
+        self.stream_downscale_expr = '1 if (shards.count > 1 and stream.IncomingBytes.average < 100000) else 0'
+        self.stream_upscale_expr = ('1 if (shards.count < 5 and ' +
+            '(stream.IncomingBytes.last / shards.count) > 500000) else 0')
 
 
 ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration, KinesisStreamConfiguration]
