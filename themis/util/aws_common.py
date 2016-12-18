@@ -3,6 +3,7 @@ import json
 import logging
 import boto3
 import os
+import pytz
 from datetime import datetime
 from themis import config, constants
 from themis.config import SECTION_EMR
@@ -23,6 +24,8 @@ INSTANCE_STATE_RUNNING = 'RUNNING'
 INSTANCE_STATE_TERMINATED = 'TERMINATED'
 
 INVALID_CONFIG_VALUE = '_invalid_value_to_avoid_restart_'
+
+CW_TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
 # TODO move to model
 CLUSTER_TYPE_PRESTO = 'Presto'
@@ -138,6 +141,16 @@ def ip_to_hostname(ip, domain_name):
 
 def hostname_to_ip(host):
     return re.sub(r'ip-([0-9]+)-([0-9]+)-([0-9]+)-([0-9]+)\..+', r'\1.\2.\3.\4', host)
+
+
+def parse_cloudwatch_timestamp(timestamp, tzinfo=pytz.UTC):
+    time = datetime.strptime(timestamp, CW_TIMESTAMP_FORMAT)
+    time = time.replace(tzinfo=tzinfo)
+    return time
+
+
+def format_cloudwatch_timestamp(timestamp):
+    return timestamp.strftime(CW_TIMESTAMP_FORMAT)
 
 
 def get_instance_by_ip(ip, role=None):

@@ -19,7 +19,7 @@ import themis.model.emr_model
 # logger
 LOG = get_logger(__name__)
 
-# get data from the last 10 minutes
+# get data from the last 10 minutes by default
 MONITORING_INTERVAL_SECS = 60 * 10
 
 # default minimum task nodes

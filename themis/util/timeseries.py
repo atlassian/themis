@@ -1,6 +1,12 @@
 import pandas
 import time
-from datetime import datetime
+import pytz
+from datetime import datetime, timedelta
+from themis.util import aws_common
+from themis.util.common import get_logger
+
+# logger
+LOG = get_logger(__name__)
 
 
 class DefaultExtractor(object):
@@ -69,3 +75,40 @@ def get_cloudwatch_timeseries(datapoints):
         datapoints = datapoints['Datapoints']
     extractor = CloudwatchExtractor()
     return get_timeseries(datapoints, extractor)
+
+
+def fillup_with_zeros(datapoints, start_time, time_window, period, statistic='Sum'):
+    # first, make sure datapoints are sorted
+    datapoints.sort(key=lambda item: item['Timestamp'])
+
+    dates_as_string = False
+    if len(datapoints) > 0:
+        dates_as_string = isinstance(datapoints[0]['Timestamp'], basestring)
+
+    expected_length = int(time_window / period)
+    for i in range(0, expected_length):
+        unit = 'n/a'
+        time = start_time + timedelta(seconds=i * period)
+
+        add_zero = False
+        if len(datapoints) <= i:
+            add_zero = True
+        else:
+            unit = datapoints[i]['Unit']
+            next_time = datapoints[i]['Timestamp']
+            if dates_as_string:
+                next_time = aws_common.parse_cloudwatch_timestamp(datapoints[i]['Timestamp'])
+            # make sure all timestamps are in UTC timezone, to avoid uncomparable datetimes
+            next_time = next_time.replace(tzinfo=pytz.UTC)
+            time = time.replace(tzinfo=pytz.UTC)
+            if (time + timedelta(seconds=period)) <= next_time:
+                add_zero = True
+
+        if add_zero:
+            if dates_as_string:
+                time = aws_common.format_cloudwatch_timestamp(time)
+            datapoints.insert(i, {
+                'Timestamp': time,
+                statistic: 0,
+                'Unit': unit
+            })

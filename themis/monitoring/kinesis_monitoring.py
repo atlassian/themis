@@ -1,8 +1,9 @@
 import json
-from themis import config
+import re
 import themis.model.resources_model
 import themis.model.kinesis_model
 import themis.monitoring.resources
+import themis.config
 from themis.model.aws_model import *
 from themis.config import *
 from themis.util.common import *
@@ -20,9 +21,16 @@ STREAM_LEVEL_METRICS = [
 SHARD_LEVEL_METRICS = ['IncomingBytes', 'IncomingRecords', 'IteratorAgeMilliseconds',
     'OutgoingBytes', 'OutgoingRecords', 'ReadProvisionedThroughputExceeded',
     'WriteProvisionedThroughputExceeded']
+
+# get CloudWatch data from the last 20 minutes by default
+CW_METRICS_TIMEWINDOW = 60 * 20
 CW_METRICS_PERIOD = 60
-CW_METRICS_TIMEWINDOW = 60
-CW_STATISTICS = 'Sum'
+
+# Maps a metric regex to the corresponding CloudWatch statistic to use. The first match is used.
+CW_STATISTICS_BY_METRIC = (
+    (r'.*IteratorAge.*', 'Maximum'),
+    (r'.*', 'Sum')
+)
 
 # track which streams have been changed (scaled) in the previous iteration
 STREAMS_CHANGED = {}
@@ -43,7 +51,7 @@ def update_config(old_config, new_config, section, resource=None):
                 disable_shard_monitoring(resource)
 
 
-config.CONFIG_LISTENERS.add(update_config)
+themis.config.CONFIG_LISTENERS.add(update_config)
 
 
 def reload_resource(resource):
@@ -55,29 +63,48 @@ def reload_resource(resource):
 
 def update_resources(resource_config):
     for res in resource_config:
-        id = res.id
-        enabled = config.get_value('enable_enhanced_monitoring', section=SECTION_KINESIS, resource=id)
+        enabled = themis.config.get_value('enable_enhanced_monitoring',
+            section=SECTION_KINESIS, resource=res.id)
         if enabled == 'true':
             res.enhanced_monitoring = [MONITORING_METRICS_ALL]
     return resource_config
 
 
+def get_statistic_for_metric(metric):
+    for stat in CW_STATISTICS_BY_METRIC:
+        if re.match(stat[0], metric):
+            return stat[1]
+    return None
+
+
 def get_cloudwatch_metrics(metric, namespace, dimensions, role=None,
-        time_window=CW_METRICS_TIMEWINDOW, period=CW_METRICS_PERIOD):
+        time_window=CW_METRICS_TIMEWINDOW, period=CW_METRICS_PERIOD, fill_zeros=True):
     start_time, end_time = get_start_and_end(diff_secs=time_window, format=None)
     metric_names = metric if isinstance(metric, basestring) else ','.join(metric)
     cloudwatch_client = aws_common.connect_cloudwatch(role=role)
+    statistic = get_statistic_for_metric(metric)
     datapoints = cloudwatch_client.get_metric_statistics(Namespace=namespace, MetricName=metric_names,
         StartTime=start_time, EndTime=end_time, Period=period, Dimensions=dimensions,
-        Statistics=[CW_STATISTICS])
+        Statistics=[statistic])
     datapoints = datapoints['Datapoints']
+
+    # sort datapoints by timestamp
+    datapoints.sort(key=lambda item: item['Timestamp'])
+    # fill empty slots with zeros
+    if fill_zeros:
+        # make sure we don't fill in zeros at the very end of the
+        # series (data may be missing due to Cloudwatch delay)
+        time_window_to_fill = time_window - 2 * period
+        timeseries.fillup_with_zeros(datapoints, start_time=start_time,
+            time_window=time_window_to_fill, period=period, statistic=statistic)
+
     return datapoints
 
 
 def get_iam_role_for_stream(stream):
     if not isinstance(stream, basestring):
         stream = stream.id
-    return config.get_value('role_to_assume', section=SECTION_KINESIS, resource=stream)
+    return themis.config.get_value('role_to_assume', section=SECTION_KINESIS, resource=stream)
 
 
 def enable_shard_monitoring(stream, metrics=['ALL']):
@@ -99,7 +126,8 @@ def disable_shard_monitoring(stream, metrics=['ALL']):
 def get_kinesis_cloudwatch_metrics(stream, metric, shard=None):
     dimensions = [{'Name': 'StreamName', 'Value': stream.id}]
     if shard:
-        shard = shard if isinstance(shard, basestring) else shard.id
+        shard = shard if isinstance(shard, basestring) else shard['id'] if isinstance(shard, dict) else shard.id
+        dimensions.append({'Name': 'ShardId', 'Value': shard})
     role = get_iam_role_for_stream(stream)
     return get_cloudwatch_metrics(metric=metric, namespace='AWS/Kinesis', dimensions=dimensions, role=role)
 
@@ -124,7 +152,11 @@ def collect_info(stream, monitoring_interval_secs=600, config=None):
     shards = result['shards'] = {}
     shards['count'] = len(shards_list)
     metrics_map = {}
-    shard_monitoring_enabled = len(stream.enhanced_monitoring) > 0
+
+    # check if shard-level monitoring is enabled
+    shard_monitoring_enabled = themis.config.get_value('enable_enhanced_monitoring',
+        section=SECTION_KINESIS, resource=stream.id)
+
     for metric in STREAM_LEVEL_METRICS:
         metric_name = metric
         metric = metric.replace('.', '_')
@@ -137,17 +169,26 @@ def collect_info(stream, monitoring_interval_secs=600, config=None):
         total[metric]['min'] = replace_nan(series.min())
         total[metric]['sum'] = replace_nan(series.sum())
         total[metric]['last'] = series.values[-1] if len(series.values) > 0 else 0
-        # map for shard-level metrics
-        metrics_map[metric] = {}
-        metrics_map[metric]['average'] = []
-        metrics_map[metric]['max'] = []
-        metrics_map[metric]['min'] = []
-        metrics_map[metric]['sum'] = []
-        if shard_monitoring_enabled and metric in SHARD_LEVEL_METRICS:
+    if shard_monitoring_enabled == 'true':
+        for metric in SHARD_LEVEL_METRICS:
             # collect detailed shard-level monitoring metrics
-            for shard in stream.shards:
+            for shard in shards_list:
                 datapoints = get_kinesis_cloudwatch_metrics(stream=stream, metric=metric, shard=shard)
                 series = timeseries.get_cloudwatch_timeseries(datapoints)
+                shard[metric] = {}
+                shard[metric]['average'] = replace_nan(series.mean())
+                shard[metric]['max'] = replace_nan(series.max())
+                shard[metric]['min'] = replace_nan(series.min())
+                shard[metric]['sum'] = replace_nan(series.sum())
+                shard[metric]['last'] = series.values[-1] if len(series.values) > 0 else 0
+                # append metrics to map
+                if metric not in metrics_map:
+                    # map for shard-level metrics
+                    metrics_map[metric] = {}
+                    metrics_map[metric]['average'] = []
+                    metrics_map[metric]['max'] = []
+                    metrics_map[metric]['min'] = []
+                    metrics_map[metric]['sum'] = []
                 metrics_map[metric]['average'].append(replace_nan(series.mean()))
                 metrics_map[metric]['max'].append(replace_nan(series.max()))
                 metrics_map[metric]['min'].append(replace_nan(series.min()))
