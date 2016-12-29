@@ -181,6 +181,7 @@ make server
 
 ## Change Log
 
+* v0.2.9: Add system load to monitoring metrics for EMR clusters
 * v0.2.8: Fix shard-level metrics for Kinesis, add min/max/avg to UI
 * v0.2.7: Extended monitoring metrics for Kinesis
 * v0.2.6: Fix merging of adjacent Kinesis shards. Fix duplicates in EMR downscale candidates

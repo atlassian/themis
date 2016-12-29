@@ -176,11 +176,14 @@ def get_nodes_to_add(info, config=None):
     return []
 
 
-def terminate_node(cluster, node):
+def terminate_node(cluster, node, config=None):
+    if not config:
+        config = themis.config.get_config()
     node_ip = node['ip']
     instance_id = node['iid']
     tasknodes_group = node['gid']
-    if aws_common.is_presto_cluster(cluster):
+    shutdown_signal = config.get(SECTION_EMR, cluster.id, KEY_SEND_SHUTDOWN_SIGNAL)
+    if aws_common.is_presto_cluster(cluster) and shutdown_signal == 'true':
         LOG.info("Sending shutdown signal to Presto task node with IP '%s'" % node_ip)
         aws_common.set_presto_node_state(cluster.ip, node_ip, aws_common.PRESTO_STATE_SHUTTING_DOWN)
     else:
@@ -239,7 +242,7 @@ def perform_scaling(cluster):
                 nodes_to_terminate = get_nodes_to_terminate(info)
                 if len(nodes_to_terminate) > 0:
                     for node in nodes_to_terminate:
-                        terminate_node(cluster, node)
+                        terminate_node(cluster, node, config=app_config)
                     action = 'DOWNSCALE(-%s)' % len(nodes_to_terminate)
                 else:
                     nodes_to_add = get_nodes_to_add(info)

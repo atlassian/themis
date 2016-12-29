@@ -150,6 +150,8 @@ class EmrConfiguration(ConfigObject):
 class EmrClusterConfiguration(ConfigObject):
     CONFIG_ITEMS = {
         'role_to_assume': 'ARN of IAM role to assume via STS when accessing this resource',
+        'send_shutdown_signal': ('Whether to send Presto SHUTDOWN signal before terminating a node ' +
+            '("true" or "false"). This has worked well up to EMR 4.x but does not seem to work in EMR 5+.'),
         'downscale_expr': 'Trigger cluster downscaling by the number of nodes this expression evaluates to',
         'upscale_expr': 'Trigger cluster upscaling by the number of nodes this expression evaluates to',
         'time_based_scaling': """A JSON string that maps date regular expressions to minimum number of nodes. \
@@ -177,6 +179,7 @@ class EmrClusterConfiguration(ConfigObject):
             'else "%s"') % (MARKET_ON_DEMAND, MARKET_SPOT)
         self.baseline_nodes = '20'
         self.custom_domain_name = ''
+        self.send_shutdown_signal = 'true'
 
 
 class KinesisConfiguration(ConfigObject):

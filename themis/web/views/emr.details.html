@@ -51,6 +51,7 @@
                   <th ts-criteria="state_presto" id="node_state_presto" ng-show="state.data.is_presto">State (Presto)</th>
                   <th ts-criteria="load.cpu" id="load_cpu" ts-default>CPU Usage</th>
                   <th ts-criteria="load.mem" id="load_mem">Memory Usage</th>
+                  <th ts-criteria="load.sysload" id="load_sysload">System Load</th>
                   <th ts-criteria="queries" id="queries">Queries</th>
                   <th ts-criteria="actions" id="actions">Actions</th>
                 </tr>
@@ -65,6 +66,7 @@
                   <td headers="state_presto" ng-show="state.data.is_presto">{{value.presto_state}}</td>
                   <td headers="load_cpu">{{value.load.cpu | percentage}}</td>
                   <td headers="load_mem">{{value.load.mem | percentage}}</td>
+                  <td headers="load_sysload">{{value.load.sysload | number:2}}</td>
                   <td headers="queries">{{value.queries}}</td>
                   <td headers="actions"><button class="aui-button" ng-click="restartNode(value)" ng-disabled="refreshing[value.host]" ng-show="value.type == 'TASK'">Restart</button></td>
                 </tr>
@@ -77,6 +79,7 @@
                   <td ng-hide="!state.data.is_presto"></td>
                   <td headers="load_cpu">Ø {{state.data.tasknodes.average.cpu | percentage}}</td>
                   <td headers="load_mem">Ø {{state.data.tasknodes.average.mem | percentage}}</td>
+                  <td headers="load_mem">Ø {{state.data.tasknodes.average.sysload | number:2}}</td>
                   <td headers="queries">{{state.data.allnodes.sum.queries}}</td>
                   <td></td>
                 </tr>
@@ -103,6 +106,7 @@
                   <th ts-criteria="state.tasknodes.count.nodes" id="hist_nodes">Number of Nodes</th>
                   <th ts-criteria="state.tasknodes.average.cpu" id="hist_cpu">Ø Task Node CPU</th>
                   <th ts-criteria="state.tasknodes.average.mem" id="hist_mem">Ø Task Node Memory</th>
+                  <th ts-criteria="state.tasknodes.average.sysload" id="hist_sysload">Ø System Load</th>
                   <th ts-criteria="state.allnodes.sum.queries" id="hist_queries">Total Queries</th>
                   <th ts-criteria="action" id="hist_action">Action</th>
                 </tr>
@@ -113,6 +117,7 @@
                   <td headers="hist_nodes">{{value.state.tasknodes.count.nodes}}</td>
                   <td headers="hist_cpu">{{value.state.tasknodes.average.cpu | percentage}}</td>
                   <td headers="hist_mem">{{value.state.tasknodes.average.mem | percentage}}</td>
+                  <td headers="hist_sysload">{{value.state.tasknodes.average.sysload | number:2}}</td>
                   <td headers="hist_queries">{{value.state.allnodes.sum.queries}}</td>
                   <td headers="hist_action">{{value.action}}</td>
                 </tr>
