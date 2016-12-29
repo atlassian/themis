@@ -9,7 +9,7 @@ import traceback
 from datetime import timedelta, datetime
 from scipy import integrate
 from themis import constants, config
-from themis.util import aws_common, common
+from themis.util import aws_common, common, math_util
 from themis.util.common import *
 from themis.config import SECTION_EMR
 from themis.util.remote import run_ssh
@@ -53,7 +53,7 @@ def get_ganglia_datapoints(cluster, host, type, monitoring_interval_secs):
     diff_secs = monitoring_interval_secs
     format = "%m/%d/%Y %H:%M"
     start_time, end_time = get_start_and_end(diff_secs, format)
-    type_param = 'mem_report' if type == 'mem' else 'cpu_report' if type == 'cpu' else 'invalid'
+    type_param = ('%s_report' % type) if type in ('mem', 'cpu', 'load') else 'invalid'
     url_pattern = 'http://%s/ganglia/graph.php?h=%s&cs=%s&ce=%s&c=%s&g=%s&json=1'
     result = None
     error = None
@@ -97,7 +97,7 @@ def get_node_load_part(cluster, host, type, monitoring_interval_secs=MONITORING_
         percent = 1.0 - (integrated / total)
         return percent
 
-    if type == 'mem':
+    elif type == 'mem':
         curve_bmem_total = curves_map['bmem_total']
         curve_bmem_free = curves_map['bmem_free']
         if len(curve_bmem_total) < 2:
@@ -107,6 +107,13 @@ def get_node_load_part(cluster, host, type, monitoring_interval_secs=MONITORING_
         if mem_total == 0:
             return float('NaN')
         return 1.0 - (mem_free / mem_total)
+
+    elif type == 'load':
+        curve_load = curves_map['a0']
+        if len(curve_load) < 2:
+            return float('NaN')
+        avg_load = math_util.get_stats(curve_load[0])['avg']
+        return avg_load
 
     return float('NaN')
 
@@ -119,11 +126,16 @@ def get_node_load_mem(cluster, host, monitoring_interval_secs=MONITORING_INTERVA
     return get_node_load_part(cluster, host, 'mem', monitoring_interval_secs)
 
 
+def get_node_load_sysload(cluster, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
+    return get_node_load_part(cluster, host, 'load', monitoring_interval_secs)
+
+
 def get_node_load(cluster, host, monitoring_interval_secs=MONITORING_INTERVAL_SECS):
     result = {}
     try:
         result['mem'] = get_node_load_mem(cluster, host, monitoring_interval_secs)
         result['cpu'] = get_node_load_cpu(cluster, host, monitoring_interval_secs)
+        result['sysload'] = get_node_load_sysload(cluster, host, monitoring_interval_secs)
     except Exception, e:
         LOG.warn('Unable to get Ganglia monitoring data for cluster / host: %s / %s' % (cluster.ip, host))
         raise e
@@ -211,38 +223,38 @@ def get_idle_task_nodes(queries):
 
 
 def do_add_stats(nodelist, result_map):
-    result_map['average'] = {}
-    result_map['sum'] = {}
-    result_map['count'] = {}
-    result_map['max'] = {}
-    result_map['min'] = {}
+
+    load_aggregates = ('average', 'sum', 'min', 'max')
+    all_aggregates = load_aggregates + ('count', )
+    load_metrics = ('cpu', 'mem', 'sysload')
+    all_metrics = load_metrics + ('queries', )
+
+    # initialize maps
+    map_min = {}
+    map_max = {}
+    map_sum = {}
+    for m in all_metrics:
+        map_min[m] = 100.0
+        map_max[m] = 0.0
+        map_sum[m] = 0.0
+    for agg in all_aggregates:
+        result_map[agg] = {}
     result_map['running'] = True
     result_map['active'] = True
-    max_cpu = 0.0
-    min_cpu = 100
-    max_mem = 0.0
-    min_mem = 100
-    sum_cpu = 0.0
-    sum_mem = 0.0
-    sum_queries = 0.0
+
     for item in nodelist:
         if 'load' in item:
-            if 'mem' in item['load'] and is_float(item['load']['mem']):
-                if item['load']['mem'] > max_mem:
-                    max_mem = item['load']['mem']
-                if item['load']['mem'] < min_mem:
-                    min_mem = item['load']['mem']
-                sum_mem += item['load']['mem']
-
-            if 'cpu' in item['load'] and is_float(item['load']['cpu']):
-                if item['load']['cpu'] > max_cpu:
-                    max_cpu = item['load']['cpu']
-                if item['load']['cpu'] < min_cpu:
-                    min_cpu = item['load']['cpu']
-                sum_cpu += item['load']['cpu']
+            for metr in load_metrics:
+                item_value = item['load'].get(metr)
+                if is_float(item_value):
+                    if item_value > map_max[metr]:
+                        map_max[metr] = item_value
+                    if item_value < map_min[metr]:
+                        map_min[metr] = item_value
+                    map_sum[metr] += item_value
 
         if 'queries' in item:
-            sum_queries += item['queries']
+            map_sum['queries'] += item['queries']
         if 'state' not in item:
             item['state'] = 'N/A'
         if item['state'] != aws_common.INSTANCE_STATE_RUNNING:
@@ -254,26 +266,21 @@ def do_add_stats(nodelist, result_map):
                 LOG.info('Status of node %s is %s, setting "<nodes>.active=False"' %
                     (item.get('host'), item['presto_state']))
             result_map['active'] = False
-    result_map['average']['cpu'] = 'NaN'
-    result_map['average']['mem'] = 'NaN'
-    result_map['average']['queries'] = 'NaN'
-    result_map['sum']['cpu'] = 'NaN'
-    result_map['sum']['mem'] = 'NaN'
-    result_map['max']['cpu'] = 'NaN'
-    result_map['min']['cpu'] = 'NaN'
-    result_map['max']['mem'] = 'NaN'
-    result_map['min']['mem'] = 'NaN'
+
+    # initialize result map with NaN values
+    for metric in all_metrics:
+        for aggr in load_aggregates:
+            if aggr not in ('min', 'max') or metric not in ('queries'):
+                result_map[aggr][metric] = 'NaN'
+    # set actual node values
     if len(nodelist) > 0:
-        result_map['average']['cpu'] = sum_cpu / len(nodelist)
-        result_map['average']['mem'] = sum_mem / len(nodelist)
-        result_map['average']['queries'] = sum_queries / len(nodelist)
-        result_map['sum']['cpu'] = sum_cpu
-        result_map['sum']['mem'] = sum_mem
-        result_map['max']['cpu'] = max_cpu
-        result_map['min']['cpu'] = min_cpu
-        result_map['max']['mem'] = max_mem
-        result_map['min']['mem'] = min_mem
-    result_map['sum']['queries'] = sum_queries
+        for metr in all_metrics:
+            result_map['average'][metr] = map_sum[metr] / len(nodelist)
+        for metr in load_metrics:
+            result_map['sum'][metr] = map_sum[metr]
+            result_map['min'][metr] = map_min[metr]
+            result_map['max'][metr] = map_max[metr]
+    result_map['sum']['queries'] = map_sum['queries']
     result_map['count']['nodes'] = len(nodelist)
 
 

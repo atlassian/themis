@@ -14,6 +14,7 @@ def serve(port):
             threading.Thread.__init__(self)
             self.cpu = None
             self.mem = None
+            self.sysload = None
             self.app = Flask('testapp')
 
         def run(self):
@@ -22,7 +23,8 @@ def serve(port):
                 graph_type = request.args.get('g')
                 cpu = self.cpu if graph_type == 'cpu_report' else None
                 mem = self.mem if graph_type == 'mem_report' else None
-                result = mock_ganglia(cpu=cpu, mem=mem)
+                sysload = self.sysload if graph_type == 'load_report' else None
+                result = mock_ganglia(cpu=cpu, mem=mem, sysload=sysload)
                 return result
             self.app.run(port=int(port), host='0.0.0.0')
     app = GangliaApp()
@@ -32,13 +34,14 @@ def serve(port):
     return app
 
 
-def mock_ganglia(cpu=None, mem=None):
+def mock_ganglia(cpu=None, mem=None, sysload=None):
     from themis.util import common
 
     result = []
     cpu_idle_dp = []
     mem_total_dp = []
     mem_free_dp = []
+    sysload_dp = []
     cpu_idle = {
         "ds_name": "cpu_idle", "cluster_name": "", "graph_type": "stack", "host_name": "",
         "metric_name": "Idle\\g", "color": "#e2e2f2", "datapoints": cpu_idle_dp
@@ -51,9 +54,14 @@ def mock_ganglia(cpu=None, mem=None):
         "ds_name": "bmem_free", "cluster_name": "", "graph_type": "stack", "host_name": "",
         "metric_name": "Free\\g", "color": "#f0ffc0", "datapoints": mem_free_dp
     }
+    sysload_total = {
+        "ds_name": "a0", "cluster_name": "", "graph_type": "stack", "host_name": "",
+        "metric_name": "1-min", "color": "#BBBBBB", "datapoints": sysload_dp
+    }
     result.append(cpu_idle)
     result.append(mem_total)
     result.append(mem_free)
+    result.append(sysload_total)
     end = common.now()
     start = end - 10 * 60
     t = start
@@ -66,6 +74,9 @@ def mock_ganglia(cpu=None, mem=None):
             mem_total_dp.append([mem_total, t])
             mem_free = "NaN" if (t - start) < 60 * 2 else mem_total * (mem / 100.0)
             mem_free_dp.append([mem_free, t])
+        if sysload:
+            load_value = "NaN" if (t - start) < 60 * 2 else sysload
+            sysload_dp.append([load_value, t])
         t += 15
 
     return make_response(json.dumps(result))
