@@ -41,6 +41,7 @@ class AggregateStatsExpr:
     def __init__(self, info):
         self.cpu = info.get('cpu')
         self.mem = info.get('mem')
+        self.sysload = info.get('sysload')
 
 
 class TimeBasedScaling:
