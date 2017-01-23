@@ -351,7 +351,8 @@ def collect_info(cluster, nodes=None, config=None,
         return result
 
     except Exception, e:
-        LOG.warning("Error getting monitoring info for cluster %s: %s" % (cluster.id, e))
+        LOG.warning("Error getting monitoring info for cluster %s: %s" %
+            (cluster.id if cluster else cluster, e))
         LOG.warning(traceback.format_exc())
         return {}
 
