@@ -156,8 +156,8 @@ def format_cloudwatch_timestamp(timestamp):
 def get_instance_by_ip(ip, role=None):
     ec2_client = connect_ec2(role=role)
     result = run_func(ec2_client.describe_instances,
-        Filters=[{'Name': 'private-ip-address', 'Values': [ip]}],
-        cache_duration_secs=STATIC_INFO_CACHE_TIMEOUT)
+                      Filters=[{'Name': 'private-ip-address', 'Values': [ip]}],
+                      cache_duration_secs=STATIC_INFO_CACHE_TIMEOUT)
     result = json.loads(result)
     return result['Reservations'][0]['Instances'][0]
 
@@ -165,7 +165,7 @@ def get_instance_by_ip(ip, role=None):
 def get_instance_groups(cluster_id, role=None):
     emr_client = connect_emr(role=role)
     result = run_func(emr_client.list_instance_groups, ClusterId=cluster_id,
-        cache_duration_secs=QUERY_CACHE_TIMEOUT)
+                      cache_duration_secs=QUERY_CACHE_TIMEOUT)
     result = json.loads(result)
     result_map = {}
     for group in result['InstanceGroups']:
@@ -181,6 +181,10 @@ def get_instance_groups(cluster_id, role=None):
 
 def get_instance_groups_tasknodes(cluster_id, role=None):
     return get_instance_groups(cluster_id, role=role)[INSTANCE_GROUP_TYPE_TASK]
+
+
+def get_instance_groups_nodes(cluster_id, role=None, instance_group_type=INSTANCE_GROUP_TYPE_CORE):
+    return get_instance_groups(cluster_id, role=role)[instance_group_type]
 
 
 def get_instance_groups_ids(cluster_id, group_type, role=None):
@@ -212,8 +216,8 @@ def get_instance_group_for_node(cluster_id, node_host, role=None):
 def get_cluster_nodes(cluster_id, role=None):
     emr_client = connect_emr(role=role)
     result = run_func(emr_client.list_instances, ClusterId=cluster_id,
-        InstanceStates=['AWAITING_FULFILLMENT', 'PROVISIONING', 'BOOTSTRAPPING', 'RUNNING'],
-        cache_duration_secs=QUERY_CACHE_TIMEOUT)
+                      InstanceStates=['AWAITING_FULFILLMENT', 'PROVISIONING', 'BOOTSTRAPPING', 'RUNNING'],
+                      cache_duration_secs=QUERY_CACHE_TIMEOUT)
     result = json.loads(result)
     result = result['Instances']
 
@@ -262,7 +266,7 @@ def spawn_task_node(instance_group_id, current_size, additional_nodes=1, role=No
     emr_client = connect_emr(role=role)
     new_size = current_size + additional_nodes
     LOG.info('Increase instances of instance group %s from %s to %s' %
-        (instance_group_id, current_size, new_size))
+             (instance_group_id, current_size, new_size))
     result = emr_client.modify_instance_groups(InstanceGroups=[
         {'InstanceGroupId': instance_group_id, 'InstanceCount': new_size}
     ])
@@ -278,15 +282,15 @@ def terminate_inactive_nodes(cluster, cluster_state, role=None):
         return
     nodes = cluster_state['nodes']
     for key, node in nodes.iteritems():
-        if (node['state'] == INSTANCE_STATE_RUNNING and node['presto_state'] not in
-                [PRESTO_STATE_SHUTTING_DOWN, PRESTO_STATE_ACTIVE]):
+        if (node['state'] == INSTANCE_STATE_RUNNING and
+                node['presto_state'] not in [PRESTO_STATE_SHUTTING_DOWN, PRESTO_STATE_ACTIVE]):
             try:
                 cmd = "cat /etc/presto/conf/config.properties | grep http-server.threads"
                 out = run_ssh(cmd, cluster.ip, user='hadoop',
-                    via_hosts=[node['host']], cache_duration_secs=QUERY_CACHE_TIMEOUT)
+                              via_hosts=[node['host']], cache_duration_secs=QUERY_CACHE_TIMEOUT)
                 if INVALID_CONFIG_VALUE in out:
                     LOG.info("Terminating instance of idle node %s in instance group %s" %
-                        (node['iid'], node['gid']))
+                             (node['iid'], node['gid']))
                     terminate_task_node(instance_group_id=node['gid'], instance_id=node['iid'], role=role)
             except Exception, e:
                 LOG.info("Unable to read Presto config from node %s: %s" % (node, e))
@@ -294,7 +298,7 @@ def terminate_inactive_nodes(cluster, cluster_state, role=None):
 
 def get_presto_node_state(cluster_ip, node_ip):
     cmd = ('curl -s --connect-timeout %s --max-time %s http://%s:8889/v1/info/state' %
-        (CURL_CONNECT_TIMEOUT, CURL_CONNECT_TIMEOUT, node_ip))
+           (CURL_CONNECT_TIMEOUT, CURL_CONNECT_TIMEOUT, node_ip))
     out = run_ssh(cmd, cluster_ip, user='hadoop', cache_duration_secs=QUERY_CACHE_TIMEOUT)
     out = remove_lines_from_string(out, r'.*Permanently added.*')
     out = re.sub(r'\s*"(.+)"\s*', r'\1', out)
@@ -303,13 +307,13 @@ def get_presto_node_state(cluster_ip, node_ip):
 
 def set_presto_node_state(cluster_ip, node_ip, state):
     cmd = ("sudo sed -i 's/http-server.threads.max=.*/http-server.threads.max=%s/g' " +
-        "/etc/presto/conf/config.properties") % INVALID_CONFIG_VALUE
+           "/etc/presto/conf/config.properties") % INVALID_CONFIG_VALUE
     if not is_ip_address(cluster_ip):
         cluster_ip = hostname_to_ip(cluster_ip)
     out = run_ssh(cmd, cluster_ip, user='hadoop', via_hosts=[node_ip], cache_duration_secs=QUERY_CACHE_TIMEOUT)
 
     cmd = ("curl -s --connect-timeout %s -X PUT -H 'Content-Type:application/json' " +
-        "-d '\\\"%s\\\"' http://%s:8889/v1/info/state") % (CURL_CONNECT_TIMEOUT, state, node_ip)
+           "-d '\\\"%s\\\"' http://%s:8889/v1/info/state") % (CURL_CONNECT_TIMEOUT, state, node_ip)
     LOG.info(cmd)
     out = run_ssh(cmd, cluster_ip, user='hadoop', cache_duration_secs=QUERY_CACHE_TIMEOUT)
     out = re.sub(r'\s*"(.+)"\s*', r'\1', out)

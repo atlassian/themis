@@ -10,7 +10,7 @@ from themis.config import *
 from themis.constants import *
 from themis.util import common, aws_common, aws_pricing, expr
 from themis.monitoring import emr_monitoring, database
-from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK
+from themis.util.aws_common import INSTANCE_GROUP_TYPE_TASK, INSTANCE_GROUP_TYPE_CORE
 
 # logger
 LOG = common.get_logger(__name__)
@@ -61,17 +61,23 @@ def get_termination_candidates(info, config=None):
     cluster_id = info['cluster_id']
     preferred_list = get_node_groups_or_preferred_markets(cluster_id, info=info, config=config)
     for preferred in preferred_list:
-        cand = get_termination_candidates_for_market_or_group(info, preferred=preferred)
+        if is_task_nodes(info):
+            cand = get_termination_candidates_for_market_or_group(info, preferred=preferred)
+        else:
+            cand = get_termination_candidates_for_market_or_group(info, preferred=preferred,
+                                                                  instance_group_type=INSTANCE_GROUP_TYPE_CORE)
         result.extend(cand)
+    LOG.info('get_termination_candidates={}'.format(json.dumps(result)))
     return result
 
 
-def get_termination_candidates_for_market_or_group(info, preferred):
+def get_termination_candidates_for_market_or_group(info, preferred, instance_group_type=INSTANCE_GROUP_TYPE_TASK):
     candidates = []
     cluster_id = info['cluster_id']
+    LOG.debug('cluster_id={}'.format(json.dumps(cluster_id)))
     role = emr_monitoring.get_iam_role_for_cluster(cluster_id)
     for key, details in info['nodes'].iteritems():
-        if details['type'] == aws_common.INSTANCE_GROUP_TYPE_TASK:
+        if details['type'] == instance_group_type:
             if 'queries' not in details:
                 details['queries'] = 0
             # terminate only nodes with 0 queries running
@@ -87,17 +93,19 @@ def execute_dsl_string(dsl_str, context, config=None):
     expr_context = expr.ExprContext(context)
     allnodes = expr_context.allnodes
     tasknodes = expr_context.tasknodes
+    corenodes = expr_context.corenodes
     time_based = expr_context.time_based
     cluster_id = context['cluster_id']
+    LOG.debug('context={}'.format(json.dumps(context, indent=2)))
 
     def get_min_nodes_for_cluster(date):
         return get_minimum_nodes(date, cluster_id)
+
     time_based.minimum.nodes = get_min_nodes_for_cluster
     now = datetime.utcnow()
     now_override = themis.config.get_value(KEY_NOW, config=config, default=None)
     if now_override:
         now = now_override
-
     return eval(dsl_str)
 
 
@@ -117,8 +125,8 @@ def get_minimum_nodes(date, cluster_id):
             if nodes_to_return is None:
                 nodes_to_return = num_nodes
             else:
-                LOG.warning(("'%s' Regex Pattern has matched more than once:\nnodes_to_return=%d " +
-                    "is now changing to nodes_to_return=%d") % (pattern, nodes_to_return, num_nodes))
+                LOG.error(("'%s' Regex Pattern has matched more than once:\nnodes_to_return=%d " +
+                           "is now changing to nodes_to_return=%d") % (pattern, nodes_to_return, num_nodes))
                 nodes_to_return = num_nodes
     # no match revert to default
     if nodes_to_return is None:
@@ -141,11 +149,11 @@ def get_nodes_to_terminate(info, config=None):
     candidates = sort_nodes_by_load(candidates, desc=False)
 
     if len(candidates) < num_downsize:
-        LOG.warning('Not enough candidate nodes to perform downsize operation: %s < %s' %
-            (len(candidates), num_downsize))
+        LOG.error('Not enough candidate nodes to perform downsize operation: %s < %s' %
+                  (len(candidates), num_downsize))
         cluster_id = info['cluster_id']
         preferred_list = get_node_groups_or_preferred_markets(cluster_id, info=info, config=config)
-        LOG.warning('Initial candidates, preferred inst. groups: %s - %s' % (candidates_orig, preferred_list))
+        LOG.error('Initial candidates, preferred inst. groups: %s - %s' % (candidates_orig, preferred_list))
 
     result = []
     if candidates:
@@ -209,7 +217,7 @@ def select_tasknode_group(tasknodes_groups, cluster_id, info=None):
             if preferred in [group['Market'], group['id']]:
                 return group
     raise Exception("Could not select task node instance group for preferred market %s: %s" %
-            (preferred_list, tasknodes_groups))
+                    (preferred_list, tasknodes_groups))
 
 
 def add_history_entry(cluster, state, action):
@@ -228,10 +236,15 @@ def add_history_entry(cluster, state, action):
     database.history_add(section=SECTION_EMR, resource=cluster.id, state=state, action=action)
 
 
+def is_task_nodes(info):
+    return info['tasknodes']['count']['nodes'] > 0
+
+
 def perform_scaling(cluster):
     app_config = config.get_config()
     monitoring_interval_secs = int(app_config.general.monitoring_time_window)
     info = cluster.monitoring_data
+    LOG.debug('info={}'.format(json.dumps(info, indent=2)))
     if info:
         action = 'N/A'
         # Make sure we don't change clusters that are not configured
@@ -247,17 +260,20 @@ def perform_scaling(cluster):
                 else:
                     nodes_to_add = get_nodes_to_add(info)
                     if len(nodes_to_add) > 0:
-                        tasknodes_groups = aws_common.get_instance_groups_tasknodes(cluster.id, role=role)
-                        tasknodes_group = select_tasknode_group(tasknodes_groups, cluster.id, info=info)['id']
+                        if is_task_nodes(info):
+                            nodes_groups = aws_common.get_instance_groups_tasknodes(cluster.id, role=role)
+                        else:
+                            nodes_groups = aws_common.get_instance_groups_nodes(cluster.id, role=role)
+                        nodes_group = select_tasknode_group(nodes_groups, cluster.id, info=info)['id']
                         current_num_nodes = len([n for key, n in info['nodes'].iteritems()
-                            if n['gid'] == tasknodes_group])
-                        spawn_nodes(cluster.ip, tasknodes_group, current_num_nodes, len(nodes_to_add), role=role)
+                                                 if n['gid'] == nodes_group])
+                        spawn_nodes(cluster.ip, nodes_group, current_num_nodes, len(nodes_to_add), role=role)
                         action = 'UPSCALE(+%s)' % len(nodes_to_add)
                     else:
                         action = 'NOTHING'
             except Exception, e:
-                LOG.warning("WARNING: Error downscaling/upscaling cluster %s: %s" %
-                    (cluster.id, traceback.format_exc(e)))
+                LOG.error("WARNING: Error downscaling/upscaling cluster %s: %s" %
+                          (cluster.id, traceback.format_exc(e)))
             # clean up and terminate instances whose nodes are already in inactive state
             aws_common.terminate_inactive_nodes(cluster, info, role=role)
         # store the state for future reference

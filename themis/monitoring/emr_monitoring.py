@@ -65,6 +65,7 @@ def get_ganglia_datapoints(cluster, host, type, monitoring_interval_secs):
             cmd = "curl --connect-timeout %s '%s' 2> /dev/null" % (CURL_CONNECT_TIMEOUT, url)
             result = run(cmd, GANGLIA_CACHE_TIMEOUT)
             result = json.loads(result)
+            LOG.debug('datapoints={}'.format(json.dumps(result)))
             return result
         except Exception, e:
             error = e
@@ -137,7 +138,7 @@ def get_node_load(cluster, host, monitoring_interval_secs=MONITORING_INTERVAL_SE
         result['cpu'] = get_node_load_cpu(cluster, host, monitoring_interval_secs)
         result['sysload'] = get_node_load_sysload(cluster, host, monitoring_interval_secs)
     except Exception, e:
-        LOG.warn('Unable to get Ganglia monitoring data for cluster / host: %s / %s' % (cluster.ip, host))
+        LOG.error('Unable to get Ganglia monitoring data for cluster / host: %s / %s' % (cluster.ip, host))
         raise e
     return result
 
@@ -155,8 +156,8 @@ def get_cluster_load(cluster, nodes=None, monitoring_interval_secs=MONITORING_IN
             load = get_node_load(cluster, host, monitoring_interval_secs)
             result[host] = load
         except Exception, e:
-            # LOG.warning(traceback.format_exc())
-            LOG.warning("Unable to get load for node %s: %s" % (host, e))
+            # LOG.error(traceback.format_exc())
+            LOG.error("Unable to get load for node %s: %s" % (host, e))
             result[host] = {}
 
     parallelize(nodes, query)
@@ -263,8 +264,8 @@ def do_add_stats(nodelist, result_map):
             item['presto_state'] = 'N/A'
         if item['presto_state'] != aws_common.PRESTO_STATE_ACTIVE:
             if result_map['active']:
-                LOG.info('Status of node %s is %s, setting "<nodes>.active=False"' %
-                    (item.get('host'), item['presto_state']))
+                LOG.debug('Presto status of node %s is %s, setting "<nodes>.active=False"' % (item.get('host'),
+                                                                                              item['presto_state']))
             result_map['active'] = False
 
     # initialize result map with NaN values
@@ -282,6 +283,7 @@ def do_add_stats(nodelist, result_map):
             result_map['max'][metr] = map_max[metr]
     result_map['sum']['queries'] = map_sum['queries']
     result_map['count']['nodes'] = len(nodelist)
+    LOG.debug('result={}'.format(json.dumps(result_map)))
 
 
 def add_stats(data):
@@ -351,9 +353,9 @@ def collect_info(cluster, nodes=None, config=None,
         return result
 
     except Exception, e:
-        LOG.warning("Error getting monitoring info for cluster %s: %s" %
+        LOG.error("Error getting monitoring info for cluster %s: %s" %
             (cluster.id if cluster else cluster, e))
-        LOG.warning(traceback.format_exc())
+        LOG.error(traceback.format_exc())
         return {}
 
 

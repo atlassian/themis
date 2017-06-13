@@ -12,3 +12,4 @@ nosetests.xml
 *.sd.yml
 *.egg-info/
 /dist/
+.idea/*
