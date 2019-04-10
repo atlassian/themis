@@ -160,7 +160,7 @@
                 <tr ng-repeat="entry in settings.config track by entry.key" ts-repeat>
                   <td headers="config_key">{{entry.key}}</td>
                   <td headers="config_descr">{{entry.description}}</td>
-                  <td headers="config_value"><input class="text long-field" ng-model="entry.value" style="width: 100%"/></td>
+                  <td headers="config_value"><textarea class="textarea long-field" ng-model="entry.value" style="width: 100%"></textarea></td>
                 </tr>
               </tbody>
             </table>

@@ -205,7 +205,8 @@ class KinesisStreamConfiguration(ConfigObject):
         'enable_enhanced_monitoring': """Enable enhanced monitoring. Setting the value to "true" \
             (without quotes) enables per-shard monitoring with ShardLevelMetrics=ALL""",
         'stream_upscale_expr': 'Trigger stream upscaling by the number of shards this expression evaluates to',
-        'stream_downscale_expr': 'Trigger stream downscaling by the number of shards this expression evaluates to'
+        'stream_downscale_expr': 'Trigger stream downscaling by the number of shards this expression evaluates to',
+        'cooloff_time': 'Time in seconds to wait beforing triggering next scale.'
     }
 
     def __init__(self):
@@ -214,6 +215,7 @@ class KinesisStreamConfiguration(ConfigObject):
         self.stream_downscale_expr = '1 if (shards.count > 1 and stream.IncomingBytes.average < 100000) else 0'
         self.stream_upscale_expr = ('1 if (shards.count < 5 and ' +
             '(stream.IncomingBytes.last / shards.count) > 500000) else 0')
+        self.cooloff_time = '120'
 
 
 ALL_CONFIG_CLASSES = [GeneralConfiguration, EmrClusterConfiguration, KinesisConfiguration, KinesisStreamConfiguration]

@@ -214,7 +214,7 @@
       controller: 'configCtrl'
     });
 
-    $urlRouterProvider.otherwise('/emr/list');
+    $urlRouterProvider.otherwise('/kinesis/list');
   });
 
   app.factory('restClient', function($resource) {
