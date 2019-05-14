@@ -40,7 +40,7 @@ docker-push:       ## Push image to Docker hub
 	docker push $(IMAGE_NAME)
 
 docker-themis:        ## Run Themis in local Docker container
-	docker run -it $(THEMIS_PORTBIND) -e THEMIS_DB_PASSWORD=$(THEMIS_DB_PASSWORD) -e AWS_ACCESS_KEY_ID=$(AWS_ACCESS_KEY_ID) -e AWS_SECRET_ACCESS_KEY="$(AWS_SECRET_ACCESS_KEY)" -e AWS_SESSION_TOKEN="$(AWS_SESSION_TOKEN)" -e SSH_KEY_ETL_PROD="$(SSH_KEY_ETL_PROD)" $(IMAGE_NAME) server_and_loop --port=8080
+	docker run -it $(THEMIS_PORTBIND) -e THEMIS_DB_PASSWORD=$(THEMIS_DB_PASSWORD) -e AWS_ACCESS_KEY_ID=$(AWS_ACCESS_KEY_ID) -e AWS_SECRET_ACCESS_KEY="$(AWS_SECRET_ACCESS_KEY)" -e AWS_SESSION_TOKEN="$(AWS_SESSION_TOKEN)" -e SSH_KEY_ETL_PROD="$(SSH_KEY_ETL_PROD)" -e  $(IMAGE_NAME) server_and_loop --port=8080
 
 docker-postgres:	
 	docker run -d --rm --name faster-postgres \
@@ -58,7 +58,8 @@ test:              ## Run tests
 lint:              ## Run code linter to check code style
 	($(VENV_RUN); pep8 --max-line-length=120 --ignore=E128 --exclude=web,bin,$(VENV_DIR) .)
 
-server:            ## Start the server on port 8081
-	($(VENV_RUN) && eval `ssh-agent -s` && PYTHONPATH=$(dir)/src:$$PYTHONPATH bin/themis server_and_loop --port=8081 --log=themis.log)
+server:           ## Start the server on port 8081
+
+	(export THEMIS_DB_URL="$(THEMIS_DB_URL)" && $(VENV_RUN) && eval `ssh-agent -s` && PYTHONPATH=$(dir)/src:$$PYTHONPATH bin/themis server_and_loop --port=8081 --log=themis.log)
 
 .PHONY: build test
